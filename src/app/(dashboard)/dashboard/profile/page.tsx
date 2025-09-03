@@ -68,15 +68,16 @@ export default function ProfilePage() {
 	}
 
 	return (
-		<div className="w-full max-w-4xl mx-auto px-4">
+		<div className="w-full max-w-3xl py-10 md:py-16">
 			<Card>
+				<div className="h-1.5 bg-gradient-to-r from-primary/70 via-primary to-primary/70" />
 				<CardHeader className="border-b">
 					<CardTitle>Your Profile</CardTitle>
 					<CardDescription>Manage your personal information and career details.</CardDescription>
 				</CardHeader>
-				<CardContent className="space-y-6">
+				<CardContent className="space-y-6 px-0 md:px-6">
 					{/* Header: Avatar + Name + Quick info */}
-					<div className="flex flex-col sm:flex-row sm:items-center gap-4">
+					<div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6 text-left">
 						{initialLoading ? (
 							<Skeleton className="h-16 w-16 rounded-full" />
 						) : (
@@ -87,7 +88,7 @@ export default function ProfilePage() {
 								</AvatarFallback>
 							</Avatar>
 						)}
-						<div className="grid gap-2 flex-1">
+						<div className="grid gap-3 w-full max-w-md">
 							<div className="grid gap-1">
 								<Label htmlFor="full_name">Name</Label>
 								{initialLoading ? (
@@ -118,7 +119,7 @@ export default function ProfilePage() {
 					<Separator />
 
 					{/* Skills */}
-					<div className="grid gap-2">
+					<div className="grid gap-2 max-w-2xl mx-auto">
 						<Label htmlFor="skills">Skills</Label>
 						{initialLoading ? (
 							<div className="grid gap-2">
@@ -140,7 +141,7 @@ export default function ProfilePage() {
 									}
 								/>
 								{(profile?.skills && profile.skills.length > 0) && (
-									<div className="flex flex-wrap gap-2 pt-1">
+									<div className="flex flex-wrap gap-2 pt-1 justify-center">
 										{profile.skills.filter(Boolean).map((skill, idx) => (
 											<Badge key={`${skill}-${idx}`} variant="secondary">
 												{skill}
@@ -199,7 +200,7 @@ export default function ProfilePage() {
 							)}
 						</div>
 
-						<div className="flex justify-end">
+						<div className="flex justify-center">
 							<Button type="submit" disabled={loading || initialLoading}>
 								{loading ? "Saving..." : "Save Profile"}
 							</Button>

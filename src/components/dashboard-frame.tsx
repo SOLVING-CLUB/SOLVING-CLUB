@@ -10,9 +10,12 @@ export default function DashboardFrame({ children }: { children: React.ReactNode
 	const [open, setOpen] = useState(true);
 
 	return (
-		<div className="min-h-screen grid grid-rows-[auto_1fr] lg:grid-rows-1 transition-colors">
+		<div
+			className="min-h-screen grid lg:grid-rows-[auto_1fr] transition-colors"
+			style={{ gridTemplateColumns: open ? "240px 1fr" : "0px 1fr" }}
+		>
 			{/* Top bar visible on all screens */}
-			<div className="flex items-center justify-between border-b p-3 lg:col-span-2 transition-colors">
+			<div className="flex items-center justify-between border-b p-3 col-span-2 transition-colors">
 				<div className="flex items-center gap-3">
 					{/* Desktop toggle */}
 					<Button
@@ -32,12 +35,8 @@ export default function DashboardFrame({ children }: { children: React.ReactNode
 				</div>
 			</div>
 
-			<div className="hidden lg:block" style={{ width: open ? 240 : 0, transition: "width 250ms ease" }}>
-				{open ? (
-					<div className="border-r overflow-hidden h-full">
-						<Sidebar />
-					</div>
-				) : null}
+			<div className="hidden lg:block h-full border-r overflow-hidden" style={{ width: open ? 240 : 0, transition: "width 250ms ease" }}>
+				{open ? <Sidebar /> : null}
 			</div>
 
 			<FadeIn>
