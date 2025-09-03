@@ -1,4 +1,4 @@
-# Solving Club Dashboard (karthik)
+# Solving Club Dashboard (karthik)....
 
 Full-stack Next.js (App Router) + Supabase boilerplate for Learnings, Projects, Profiles, and Hours.
 
