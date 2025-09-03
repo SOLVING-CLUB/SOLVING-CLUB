@@ -1,14 +1,14 @@
-import Sidebar from "@/components/sidebar";
 import Providers from "@/components/providers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import DashboardFrame from "@/components/dashboard-frame";
 
 export default async function DashboardLayout({
 	children,
 }: {
 	children: React.ReactNode;
 }) {
-	const supabase = getSupabaseServerClient();
+	const supabase = await getSupabaseServerClient();
 	const {
 		data: { session },
 	} = await supabase.auth.getSession();
@@ -18,11 +18,8 @@ export default async function DashboardLayout({
 	}
 
 	return (
-		<div className="min-h-screen grid grid-cols-[240px_1fr]">
-			<Sidebar />
-			<Providers>
-				<main className="p-6">{children}</main>
-			</Providers>
-		</div>
+		<Providers>
+			<DashboardFrame>{children}</DashboardFrame>
+		</Providers>
 	);
 }

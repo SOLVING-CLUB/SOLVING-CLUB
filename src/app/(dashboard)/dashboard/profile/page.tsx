@@ -62,7 +62,7 @@ export default function ProfilePage() {
 	}
 
 	return (
-		<div className="max-w-3xl space-y-6">
+		<div className="w-full max-w-2xl mx-auto px-4">
 			<Card>
 				<CardHeader>
 					<CardTitle>Your Profile</CardTitle>

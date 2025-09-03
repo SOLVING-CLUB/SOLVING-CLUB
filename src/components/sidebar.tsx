@@ -4,8 +4,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import ThemeToggle from "@/components/theme-toggle";
 
-const nav = [
+export const nav = [
 	{ href: "/dashboard/learnings", label: "Learnings" },
 	{ href: "/dashboard/projects", label: "Projects" },
 	{ href: "/dashboard/profile", label: "Profile" },
@@ -38,7 +39,10 @@ export default function Sidebar() {
 					</Link>
 				))}
 			</nav>
-			<div className="mt-auto pt-4">
+			<div className="mt-auto pt-4 space-y-2">
+				<div>
+					<ThemeToggle />
+				</div>
 				<Button variant="outline" className="w-full" onClick={onLogout}>Logout</Button>
 			</div>
 		</aside>
