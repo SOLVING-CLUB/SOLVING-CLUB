@@ -1,0 +1,3 @@
+-- Replace with a real user id from auth.users
+-- insert into public.profiles (id, full_name, career_focus, skills, experience, current_status, portfolio)
+-- values ('00000000-0000-0000-0000-000000000000', 'Demo User', 'Full-stack', '{Next.js, Supabase}', '2 years building web apps', 'Open to work', 'https://example.com');
