@@ -101,7 +101,7 @@ export default function ProjectDetailPage() {
 
 	useEffect(() => {
 		if (projectId) {
-			loadProjectData();
+			// defer to the effect declared after loadProjectData
 		}
 	}, [projectId]);
 
@@ -158,6 +158,12 @@ export default function ProjectDetailPage() {
 		        setMessages(messagesData || []);
         setLoading(false);
     }, [projectId, supabase]);
+
+	useEffect(() => {
+		if (projectId) {
+			loadProjectData();
+		}
+	}, [projectId, loadProjectData]);
 
 	async function createTask() {
 		if (!newTask.title.trim()) {

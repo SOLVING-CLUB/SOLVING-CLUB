@@ -15,15 +15,17 @@ export async function middleware(request: NextRequest) {
 				get(name: string) {
 					return request.cookies.get(name)?.value;
 				},
-				set(name: string, value: string, options: Record<string, unknown>) {
-					request.cookies.set({ name, value, ...options });
+				set(name: string, value: string, _options: Record<string, unknown>) {
+					// RequestCookies.set requires (name, value)
+					request.cookies.set(name, value);
 					response = NextResponse.next({ request: { headers: request.headers } });
-					response.cookies.set({ name, value, ...options });
+					// Response cookies support options
+					response.cookies.set({ name, value });
 				},
-				remove(name: string, options: Record<string, unknown>) {
-					request.cookies.set({ name, value: "", ...options, expires: new Date(0) });
+				remove(name: string, _options: Record<string, unknown>) {
+					request.cookies.set(name, "");
 					response = NextResponse.next({ request: { headers: request.headers } });
-					response.cookies.set({ name, value: "", ...options, expires: new Date(0) });
+					response.cookies.set({ name, value: "", expires: new Date(0) });
 				},
 			},
 		});

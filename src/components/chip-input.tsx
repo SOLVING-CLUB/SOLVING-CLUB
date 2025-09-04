@@ -13,7 +13,6 @@ type ChipInputProps = {
   className?: string;
   allowToggle?: boolean; // show a Chips toggle
   defaultModeChips?: boolean; // start in chips mode
-  size?: "sm" | "md";
   onArrayChange?: (values: string[]) => void; // optional callback
   onTextChange?: (value: string) => void; // optional callback for text mode
 };
@@ -32,7 +31,6 @@ export default function ChipInput({
   className,
   allowToggle = true,
   defaultModeChips = false,
-  size = "md",
   onArrayChange,
   onTextChange,
 }: ChipInputProps) {
@@ -58,7 +56,7 @@ export default function ChipInput({
       lastEmittedRef.current = serialized;
       onArrayChange?.(arr);
     }
-  }, [chips, text, isChips]);
+  }, [chips, text, isChips, onArrayChange]);
 
   function addChipFromDraft() {
     const items = splitToArray(draft);

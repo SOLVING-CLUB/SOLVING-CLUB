@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { createServerClient, SupabaseClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/config";
 
 export async function getSupabaseServerClient(): Promise<SupabaseClient> {

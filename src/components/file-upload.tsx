@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -31,7 +31,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 	const supabase = getSupabaseBrowserClient();
 
 	useEffect(() => {
-		loadFiles();
+		// defer to effect below that depends on loadFiles
 	}, [projectId]);
 
 	const loadFiles = useCallback(async () => {
@@ -55,6 +55,10 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 			console.error("Unexpected error loading files:", error);
 		}
 	}, [projectId, supabase]);
+
+	useEffect(() => {
+		loadFiles();
+	}, [projectId, loadFiles]);
 
 	const handleFileSelect = (selectedFiles: FileList | null) => {
 		if (!selectedFiles) return;

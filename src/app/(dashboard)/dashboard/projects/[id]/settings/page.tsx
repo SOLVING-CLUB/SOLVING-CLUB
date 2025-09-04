@@ -15,7 +15,6 @@ import {
 	Trash2, 
 	Save, 
 	ArrowLeft,
-	MoreVertical
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -52,16 +51,16 @@ export default function ProjectSettingsPage() {
 	const [inviteEmail, setInviteEmail] = useState("");
 	
 	// Project settings form
-	const [projectSettings, setProjectSettings] = useState({
+	type ProjectStatus = 'planning' | 'active' | 'completed' | 'on-hold';
+	type ProjectSettings = { name: string; description: string; status: ProjectStatus };
+	const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
 		name: "",
 		description: "",
-		status: "planning" as const
+		status: "planning"
 	});
 
 	useEffect(() => {
-		if (projectId) {
-			loadProjectData();
-		}
+		// defer to the effect declared after loadProjectData
 	}, [projectId]);
 
 	const loadProjectData = useCallback(async () => {
@@ -86,7 +85,7 @@ export default function ProjectSettingsPage() {
 		setProjectSettings({
 			name: projectData.name,
 			description: projectData.description || "",
-			status: projectData.status
+			status: projectData.status as ProjectStatus
 		});
 
 		// Load members
@@ -101,6 +100,12 @@ export default function ProjectSettingsPage() {
 		        setMembers(membersData || []);
         setLoading(false);
     }, [projectId, supabase]);
+
+	useEffect(() => {
+		if (projectId) {
+			loadProjectData();
+		}
+	}, [projectId, loadProjectData]);
 
 	async function updateProject() {
 		if (!projectSettings.name.trim()) {
@@ -226,15 +231,7 @@ export default function ProjectSettingsPage() {
 		window.location.href = "/dashboard/projects";
 	}
 
-	const getStatusColor = (status: string) => {
-		switch (status) {
-		case 'planning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-		case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-		case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-		case 'on-hold': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-		}
-	};
+	// getStatusColor was unused; removed to satisfy linter
 
 	if (loading && !project) {
 		return (
@@ -319,7 +316,7 @@ export default function ProjectSettingsPage() {
 								id="project-status"
 								className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 								value={projectSettings.status}
-								onChange={(e) => setProjectSettings(prev => ({ ...prev, status: e.target.value as string }))}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, status: e.target.value as ProjectStatus }))}
 							>
 								<option value="planning">Planning</option>
 								<option value="active">Active</option>

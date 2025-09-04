@@ -51,22 +51,24 @@ export default function Starfield({ className }: StarfieldProps) {
 		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
  
  		function resize() {
+ 			const c = canvasRef.current;
+ 			if (!c || !ctx) return;
  			const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
- 			const width = Math.floor(canvas.clientWidth * dpr);
- 			const height = Math.floor(canvas.clientHeight * dpr);
- 			canvas.width = width;
- 			canvas.height = height;
+ 			const width = Math.floor(c.clientWidth * dpr);
+ 			const height = Math.floor(c.clientHeight * dpr);
+ 			c.width = width;
+ 			c.height = height;
  			ctx.setTransform(1, 0, 0, 1, 0, 0);
  			ctx.scale(dpr, dpr);
 
  			// Generate stars proportional to area, clamped for perf
- 			const area = canvas.clientWidth * canvas.clientHeight;
+ 			const area = c.clientWidth * c.clientHeight;
  			const target = Math.round(Math.min(1200, Math.max(200, area / 2500)));
  			const stars: Star[] = [];
  			for (let i = 0; i < target; i++) {
  				stars.push({
- 					x: Math.random() * canvas.clientWidth,
- 					y: Math.random() * canvas.clientHeight,
+ 					x: Math.random() * c.clientWidth,
+ 					y: Math.random() * c.clientHeight,
  					radius: Math.random() < 0.85 ? 0.6 : 1.1,
  					opacity: 0.35 + Math.random() * 0.55,
  					phase: Math.random() * Math.PI * 2,
@@ -87,13 +89,19 @@ export default function Starfield({ className }: StarfieldProps) {
  			lastTime = now;
  			acc += delta;
  			if (acc >= frameInterval) {
- 				drawFrame(ctx, canvas.clientWidth, canvas.clientHeight, now, !media.matches);
+ 				const c = canvasRef.current;
+ 				if (c && ctx) {
+ 					drawFrame(ctx, c.clientWidth, c.clientHeight, now, !media.matches);
+ 				}
  				acc = 0;
  			}
  			rafRef.current = requestAnimationFrame(loop);
  		}
 
- 		drawFrame(ctx, canvas.clientWidth, canvas.clientHeight, performance.now(), !media.matches);
+ 		const initialCanvas = canvasRef.current;
+ 		if (initialCanvas && ctx) {
+ 			drawFrame(ctx, initialCanvas.clientWidth, initialCanvas.clientHeight, performance.now(), !media.matches);
+ 		}
  		rafRef.current = requestAnimationFrame(loop);
 
  		window.addEventListener("resize", resize);

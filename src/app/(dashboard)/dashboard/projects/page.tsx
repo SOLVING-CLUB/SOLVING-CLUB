@@ -24,16 +24,27 @@ interface Project {
 	task_count?: number;
 }
 
+type MemberProjectsRow = {
+	project_id: string;
+	projects: Project | null;
+};
+
+type NewProject = {
+	name: string;
+	description: string;
+	status: Project['status'];
+};
+
 export default function ProjectsPage() {
 	const supabase = getSupabaseBrowserClient();
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const [newProject, setNewProject] = useState({
+	const [newProject, setNewProject] = useState<NewProject>({
 		name: "",
 		description: "",
-		status: "planning" as const
+		status: "planning"
 	});
 
 	const loadProjects = useCallback(async () => {
@@ -77,14 +88,16 @@ export default function ProjectsPage() {
 			}
 
 			// Combine and deduplicate projects
-			const allProjects = [
-				...(ownedProjects || []),
-				...(memberProjects?.map(mp => mp.projects).filter(Boolean) || [])
-			];
+			const ownedList: Project[] = (ownedProjects as Project[] | null) ?? [];
+			const memberList: MemberProjectsRow[] = (Array.isArray(memberProjects) ? (memberProjects as unknown as MemberProjectsRow[]) : []) ?? [];
+			const memberProjectItems: Project[] = memberList
+				.flatMap((mp) => (Array.isArray(mp.projects) ? mp.projects : [mp.projects]))
+				.filter((p): p is Project => Boolean(p));
+			const allProjects: Project[] = [...ownedList, ...memberProjectItems];
 
 			// Remove duplicates based on project ID
-			const uniqueProjects = allProjects.filter((project, index, self) => 
-				index === self.findIndex(p => p.id === project.id)
+			const uniqueProjects: Project[] = allProjects.filter((project, index, self) => 
+				index === self.findIndex((p) => p.id === project.id)
 			);
 
 			// Get member and task counts for each project
@@ -250,7 +263,7 @@ export default function ProjectsPage() {
 											id="project-status"
 											className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 											value={newProject.status}
-											onChange={(e) => setNewProject(prev => ({ ...prev, status: e.target.value as string }))}
+											onChange={(e) => setNewProject(prev => ({ ...prev, status: e.target.value as NewProject['status'] }))}
 										>
 											<option value="planning">Planning</option>
 											<option value="active">Active</option>
