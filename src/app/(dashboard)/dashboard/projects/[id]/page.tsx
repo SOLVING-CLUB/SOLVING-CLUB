@@ -66,6 +66,14 @@ interface Message {
 	};
 }
 
+type NewTask = {
+	title: string;
+	description: string;
+	priority: 'low' | 'medium' | 'high';
+	due_date: string;
+	assigned_to: string;
+};
+
 export default function ProjectDetailPage() {
 	const params = useParams();
 	const projectId = params.id as string;
@@ -80,10 +88,10 @@ export default function ProjectDetailPage() {
 	
 	// New task form
 	const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
-	const [newTask, setNewTask] = useState({
+	const [newTask, setNewTask] = useState<NewTask>({
 		title: "",
 		description: "",
-		priority: "medium" as const,
+		priority: "medium",
 		due_date: "",
 		assigned_to: ""
 	});
@@ -435,7 +443,7 @@ export default function ProjectDetailPage() {
 														id="task-priority"
 														className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 														value={newTask.priority}
-														onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as string }))}
+														onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as NewTask['priority'] }))}
 													>
 														<option value="low">Low</option>
 														<option value="medium">Medium</option>
