@@ -1,84 +1,43 @@
--- Profiles table
-create table if not exists public.profiles (
-	id uuid primary key references auth.users(id) on delete cascade,
-	full_name text,
-	avatar_url text,
-	email text,
-	career_focus text,
-	skills text[] default '{}',
-	experience text,
-	current_status text,
-	portfolio text,
+-- Apply this script to your Supabase database via SQL Editor
+-- This will create all the necessary tables and policies
+
+-- Add email column to profiles if it doesn't exist
+alter table public.profiles add column if not exists email text;
+
+-- Weekly Hours table
+create table if not exists public.weekly_hours (
+	id uuid primary key default gen_random_uuid(),
+	user_id uuid references auth.users(id) on delete cascade not null,
+	week_start date not null, -- Monday of the week
+	monday_hours integer not null default 0,
+	tuesday_hours integer not null default 0,
+	wednesday_hours integer not null default 0,
+	thursday_hours integer not null default 0,
+	friday_hours integer not null default 0,
+	saturday_hours integer not null default 0,
+	sunday_hours integer not null default 0,
+	notes text,
+	created_at timestamptz default now(),
+	updated_at timestamptz default now(),
+	unique (user_id, week_start)
+);
+
+-- Learning Resources table
+create table if not exists public.learning_resources (
+	id uuid primary key default gen_random_uuid(),
+	user_id uuid references auth.users(id) on delete cascade not null,
+	title text not null,
+	description text,
+	url text not null,
+	category text not null default 'programming',
+	difficulty text not null default 'beginner' check (difficulty in ('beginner', 'intermediate', 'advanced')),
+	estimated_time integer not null default 30, -- in minutes
+	tags text[] default '{}',
+	rating integer default 0 check (rating >= 0 and rating <= 5),
+	completed boolean default false,
 	created_at timestamptz default now(),
 	updated_at timestamptz default now()
 );
-
--- Add email column if it doesn't exist (for existing profiles table)
-alter table public.profiles add column if not exists email text;
-
--- Triggers to update timestamps
-create or replace function public.set_updated_at()
-returns trigger as $$
-begin
-	new.updated_at = now();
-	return new;
-end;
-$$ language plpgsql;
-
-create or replace trigger profiles_set_updated_at
-before update on public.profiles
-for each row execute function public.set_updated_at();
-
--- RLS
-alter table public.profiles enable row level security;
-
--- Each user can manage only their row
-drop policy if exists "Profiles are viewable by authenticated users" on public.profiles;
-create policy "Profiles are viewable by authenticated users" on public.profiles
-for select using (auth.role() = 'authenticated');
-
-drop policy if exists "Users can insert their own profile" on public.profiles;
-create policy "Users can insert their own profile" on public.profiles
-for insert with check (auth.uid() = id);
-
-drop policy if exists "Users can update their own profile" on public.profiles;
-create policy "Users can update their own profile" on public.profiles
-for update using (auth.uid() = id);
-
--- Flexible profile sections (JSONB) to support custom layouts/sections
-create table if not exists public.profile_sections (
-    id uuid primary key default gen_random_uuid(),
-    user_id uuid not null references auth.users(id) on delete cascade,
-    key text not null, -- e.g., 'personal', 'skills', 'projects', custom slug
-    title text not null,
-    type text not null, -- e.g., 'personal', 'skills', 'custom'
-    position int not null default 0,
-    content jsonb not null default '{}',
-    created_at timestamptz default now(),
-    updated_at timestamptz default now(),
-    unique(user_id, key)
-);
-
-create index if not exists profile_sections_user_idx on public.profile_sections(user_id);
-create index if not exists profile_sections_position_idx on public.profile_sections(user_id, position);
-
-create or replace trigger profile_sections_set_updated_at
-before update on public.profile_sections
-for each row execute function public.set_updated_at();
-
-alter table public.profile_sections enable row level security;
-
-drop policy if exists "Profile sections viewable by authenticated users" on public.profile_sections;
-create policy "Profile sections viewable by authenticated users" on public.profile_sections
-for select using (auth.role() = 'authenticated');
-
-drop policy if exists "Users can insert their own profile sections" on public.profile_sections;
-create policy "Users can insert their own profile sections" on public.profile_sections
-for insert with check (auth.uid() = user_id);
-
-drop policy if exists "Users can update their own profile sections" on public.profile_sections;
-create policy "Users can update their own profile sections" on public.profile_sections
-for update using (auth.uid() = user_id);
 
 -- Projects table
 create table if not exists public.projects (
@@ -136,7 +95,15 @@ create table if not exists public.project_files (
 	created_at timestamptz default now()
 );
 
--- Triggers for project tables
+-- Triggers for new tables
+create or replace trigger weekly_hours_set_updated_at
+before update on public.weekly_hours
+for each row execute function public.set_updated_at();
+
+create or replace trigger learning_resources_set_updated_at
+before update on public.learning_resources
+for each row execute function public.set_updated_at();
+
 create or replace trigger projects_set_updated_at
 before update on public.projects
 for each row execute function public.set_updated_at();
@@ -145,12 +112,48 @@ create or replace trigger project_tasks_set_updated_at
 before update on public.project_tasks
 for each row execute function public.set_updated_at();
 
--- Enable RLS for all project tables
+-- Enable RLS for new tables
+alter table public.weekly_hours enable row level security;
+alter table public.learning_resources enable row level security;
 alter table public.projects enable row level security;
 alter table public.project_members enable row level security;
 alter table public.project_tasks enable row level security;
 alter table public.project_messages enable row level security;
 alter table public.project_files enable row level security;
+
+-- Weekly Hours policies
+drop policy if exists "Users can view all weekly hours" on public.weekly_hours;
+create policy "Users can view all weekly hours" on public.weekly_hours
+	for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Users can create their own weekly hours" on public.weekly_hours;
+create policy "Users can create their own weekly hours" on public.weekly_hours
+	for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own weekly hours" on public.weekly_hours;
+create policy "Users can update their own weekly hours" on public.weekly_hours
+	for update using (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own weekly hours" on public.weekly_hours;
+create policy "Users can delete their own weekly hours" on public.weekly_hours
+	for delete using (auth.uid() = user_id);
+
+-- Learning Resources policies
+drop policy if exists "Users can view their own learning resources" on public.learning_resources;
+create policy "Users can view their own learning resources" on public.learning_resources
+	for select using (auth.uid() = user_id);
+
+drop policy if exists "Users can create their own learning resources" on public.learning_resources;
+create policy "Users can create their own learning resources" on public.learning_resources
+	for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own learning resources" on public.learning_resources;
+create policy "Users can update their own learning resources" on public.learning_resources
+	for update using (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own learning resources" on public.learning_resources;
+create policy "Users can delete their own learning resources" on public.learning_resources
+	for delete using (auth.uid() = user_id);
 
 -- Projects policies
 drop policy if exists "Users can view projects they own or are members of" on public.projects;
@@ -302,85 +305,3 @@ create policy "Project members can delete files" on storage.objects
 			where id::text = (storage.foldername(name))[2]
 		)
 	);
-
--- Learning Resources table
-create table if not exists public.learning_resources (
-	id uuid primary key default gen_random_uuid(),
-	user_id uuid references auth.users(id) on delete cascade not null,
-	title text not null,
-	description text,
-	url text not null,
-	category text not null default 'programming',
-	difficulty text not null default 'beginner' check (difficulty in ('beginner', 'intermediate', 'advanced')),
-	estimated_time integer not null default 30, -- in minutes
-	tags text[] default '{}',
-	rating integer default 0 check (rating >= 0 and rating <= 5),
-	completed boolean default false,
-	created_at timestamptz default now(),
-	updated_at timestamptz default now()
-);
-
--- Weekly Hours table
-create table if not exists public.weekly_hours (
-	id uuid primary key default gen_random_uuid(),
-	user_id uuid references auth.users(id) on delete cascade not null,
-	week_start date not null, -- Monday of the week
-	monday_hours integer not null default 0,
-	tuesday_hours integer not null default 0,
-	wednesday_hours integer not null default 0,
-	thursday_hours integer not null default 0,
-	friday_hours integer not null default 0,
-	saturday_hours integer not null default 0,
-	sunday_hours integer not null default 0,
-	notes text,
-	created_at timestamptz default now(),
-	updated_at timestamptz default now(),
-	unique (user_id, week_start)
-);
-
--- Triggers for new tables
-create or replace trigger learning_resources_set_updated_at
-before update on public.learning_resources
-for each row execute function public.set_updated_at();
-
-create or replace trigger weekly_hours_set_updated_at
-before update on public.weekly_hours
-for each row execute function public.set_updated_at();
-
--- Enable RLS for new tables
-alter table public.learning_resources enable row level security;
-alter table public.weekly_hours enable row level security;
-
--- Learning Resources policies
-drop policy if exists "Users can view their own learning resources" on public.learning_resources;
-create policy "Users can view their own learning resources" on public.learning_resources
-	for select using (auth.uid() = user_id);
-
-drop policy if exists "Users can create their own learning resources" on public.learning_resources;
-create policy "Users can create their own learning resources" on public.learning_resources
-	for insert with check (auth.uid() = user_id);
-
-drop policy if exists "Users can update their own learning resources" on public.learning_resources;
-create policy "Users can update their own learning resources" on public.learning_resources
-	for update using (auth.uid() = user_id);
-
-drop policy if exists "Users can delete their own learning resources" on public.learning_resources;
-create policy "Users can delete their own learning resources" on public.learning_resources
-	for delete using (auth.uid() = user_id);
-
--- Weekly Hours policies
-drop policy if exists "Users can view all weekly hours" on public.weekly_hours;
-create policy "Users can view all weekly hours" on public.weekly_hours
-	for select using (auth.role() = 'authenticated');
-
-drop policy if exists "Users can create their own weekly hours" on public.weekly_hours;
-create policy "Users can create their own weekly hours" on public.weekly_hours
-	for insert with check (auth.uid() = user_id);
-
-drop policy if exists "Users can update their own weekly hours" on public.weekly_hours;
-create policy "Users can update their own weekly hours" on public.weekly_hours
-	for update using (auth.uid() = user_id);
-
-drop policy if exists "Users can delete their own weekly hours" on public.weekly_hours;
-create policy "Users can delete their own weekly hours" on public.weekly_hours
-	for delete using (auth.uid() = user_id);
