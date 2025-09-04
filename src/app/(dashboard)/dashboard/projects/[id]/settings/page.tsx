@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { 
 	Settings, 
-	Users, 
 	UserPlus, 
 	Trash2, 
 	Save, 
 	ArrowLeft,
-	Mail,
 	MoreVertical
 } from "lucide-react";
 import Link from "next/link";
@@ -26,14 +24,14 @@ interface Project {
 	id: string;
 	name: string;
 	description: string;
-	status: 'planning' | 'active' | 'completed' | 'on-hold';
+	    status: 'planning' | 'active' | 'completed' | 'on-hold';
 	owner_id: string;
 }
 
 interface Member {
 	id: string;
 	user_id: string;
-	role: 'owner' | 'admin' | 'member';
+	    role: 'owner' | 'admin' | 'member';
 	joined_at: string;
 	user: {
 		full_name: string;
@@ -66,7 +64,7 @@ export default function ProjectSettingsPage() {
 		}
 	}, [projectId]);
 
-	async function loadProjectData() {
+	const loadProjectData = useCallback(async () => {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) return;
@@ -100,9 +98,9 @@ export default function ProjectSettingsPage() {
 			`)
 			.eq("project_id", projectId);
 
-		setMembers(membersData || []);
-		setLoading(false);
-	}
+		        setMembers(membersData || []);
+        setLoading(false);
+    }, [projectId, supabase]);
 
 	async function updateProject() {
 		if (!projectSettings.name.trim()) {
@@ -230,11 +228,11 @@ export default function ProjectSettingsPage() {
 
 	const getStatusColor = (status: string) => {
 		switch (status) {
-			case 'planning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-			case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-			case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-			case 'on-hold': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-			default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+		case 'planning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+		case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+		case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+		case 'on-hold': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 		}
 	};
 
@@ -258,7 +256,7 @@ export default function ProjectSettingsPage() {
 					<CardContent className="p-12 text-center">
 						<Settings className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
 						<h3 className="text-lg font-semibold mb-2">Project not found</h3>
-						<p className="text-muted-foreground mb-4">The project you're looking for doesn't exist or you don't have access to it.</p>
+						<p className="text-muted-foreground mb-4">The project you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.</p>
 						<Link href="/dashboard/projects">
 							<Button>Back to Projects</Button>
 						</Link>
@@ -321,7 +319,7 @@ export default function ProjectSettingsPage() {
 								id="project-status"
 								className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 								value={projectSettings.status}
-								onChange={(e) => setProjectSettings(prev => ({ ...prev, status: e.target.value as any }))}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, status: e.target.value as string }))}
 							>
 								<option value="planning">Planning</option>
 								<option value="active">Active</option>

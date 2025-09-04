@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Search, Users, Calendar, FileText, MessageSquare, Upload, Settings, Eye } from "lucide-react";
+import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye } from "lucide-react";
 import Link from "next/link";
 
 interface Project {
@@ -38,9 +38,9 @@ export default function ProjectsPage() {
 
 	useEffect(() => {
 		loadProjects();
-	}, []);
+	}, [loadProjects]);
 
-	async function loadProjects() {
+	const loadProjects = useCallback(async () => {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) {
@@ -121,7 +121,7 @@ export default function ProjectsPage() {
 		} finally {
 			setLoading(false);
 		}
-	}
+	}, [supabase]);
 
 	async function createProject() {
 		if (!newProject.name.trim()) {
@@ -250,7 +250,7 @@ export default function ProjectsPage() {
 											id="project-status"
 											className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 											value={newProject.status}
-											onChange={(e) => setNewProject(prev => ({ ...prev, status: e.target.value as any }))}
+											onChange={(e) => setNewProject(prev => ({ ...prev, status: e.target.value as string }))}
 										>
 											<option value="planning">Planning</option>
 											<option value="active">Active</option>

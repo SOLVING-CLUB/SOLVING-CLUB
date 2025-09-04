@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,7 @@ import {
 	Clock, 
 	Star, 
 	Tag,
-	Filter,
-	Download,
-	Eye,
-	Edit,
-	Trash2
+	Eye
 } from "lucide-react";
 
 interface LearningResource {
@@ -70,9 +66,9 @@ export default function LearningsPage() {
 
 	useEffect(() => {
 		loadResources();
-	}, []);
+	}, [loadResources]);
 
-	async function loadResources() {
+	const loadResources = useCallback(async () => {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) {
@@ -101,7 +97,7 @@ export default function LearningsPage() {
 		} finally {
 			setLoading(false);
 		}
-	}
+	}, [supabase]);
 
 	async function createResource() {
 		if (!newResource.title.trim() || !newResource.url.trim()) {
@@ -173,7 +169,7 @@ export default function LearningsPage() {
 			}
 
 			loadResources();
-		} catch (error) {
+		} catch {
 			toast.error("An unexpected error occurred");
 		}
 	}
@@ -285,7 +281,7 @@ export default function LearningsPage() {
 												id="resource-difficulty"
 												className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 												value={newResource.difficulty}
-												onChange={(e) => setNewResource(prev => ({ ...prev, difficulty: e.target.value as any }))}
+												onChange={(e) => setNewResource(prev => ({ ...prev, difficulty: e.target.value as 'beginner' | 'intermediate' | 'advanced' }))}
 											>
 												<option value="beginner">Beginner</option>
 												<option value="intermediate">Intermediate</option>

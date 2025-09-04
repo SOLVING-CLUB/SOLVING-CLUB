@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -55,7 +54,7 @@ function renderValue(value: any): React.ReactNode {
 		);
 	}
 	if (typeof value === "object") {
-		const items = (value as any).items;
+		const items = (value as string).items;
 		if (Array.isArray(items)) return renderValue(items);
 		return (
 			<pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(value, null, 2)}</pre>
@@ -157,7 +156,7 @@ export default function ProfilePage() {
 		};
 		const { data, error } = await supabase
 			.from("profile_sections")
-			.upsert(payload as any, { onConflict: "user_id,key" })
+			.upsert(payload as string, { onConflict: "user_id,key" })
 			.select();
 		setLoading(false);
 		if (error) return toast.error(error.message);
@@ -315,8 +314,8 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									const form = e.currentTarget as HTMLFormElement;
-									const formData = new FormData(form);
+									
+									
 									await upsertSection({
 										id: sections.find(s=>s.key==="personal")?.id || "",
 										key: "personal",
@@ -396,8 +395,8 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									const form = e.currentTarget as HTMLFormElement;
-									const formData = new FormData(form);
+									
+									
 									await upsertSection({
 										id: sections.find(s=>s.key==="skills")?.id || "",
 										key: "skills",
@@ -469,8 +468,8 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									const form = e.currentTarget as HTMLFormElement;
-									const formData = new FormData(form);
+									
+									
 									await onSave(e);
 									setEditingKey(null);
 								}}
@@ -616,8 +615,8 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									const form = e.currentTarget as HTMLFormElement;
-									const formData = new FormData(form);
+									
+									
 									
 									const newProject = {
 										name: String(formData.get("project_name") || ""),
@@ -772,9 +771,9 @@ export default function ProfilePage() {
 									<form
 										onSubmit={async (e) => {
 											e.preventDefault();
-											const form = e.currentTarget as HTMLFormElement;
-											const formData = new FormData(form);
-											let content: any = {};
+											
+											
+											let content: string = {};
 											try {
 												content = JSON.parse(String(formData.get("content") || "{}"));
 											} catch {
@@ -814,12 +813,12 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									const form = e.currentTarget as HTMLFormElement;
-									const formData = new FormData(form);
+									
+									
 									const key = String(formData.get("new_key") || "").trim() || `custom_${Date.now()}`;
 									const title = String(formData.get("new_title") || "Untitled");
 									const position = sections.length + 1;
-									let content: any = {};
+									let content: string = {};
 									try {
 										content = JSON.parse(String(formData.get("new_content") || "{}"));
 									} catch {

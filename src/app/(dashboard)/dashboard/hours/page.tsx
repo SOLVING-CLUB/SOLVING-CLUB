@@ -1,25 +1,22 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
 	Plus, 
-	Clock, 
 	Calendar, 
 	Users, 
 	ChevronLeft,
 	ChevronRight,
 	Edit,
 	Save,
-	X,
-	Check,
-	AlertCircle
+	X
 } from "lucide-react";
 
 interface WeeklyHours {
@@ -97,11 +94,7 @@ export default function HoursPage() {
 		return dates;
 	}
 
-	useEffect(() => {
-		loadData();
-	}, [currentWeek]);
-
-	async function loadData() {
+	const loadData = useCallback(async () => {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) {
@@ -130,7 +123,7 @@ export default function HoursPage() {
 			// Load team members (start with current user, add others if they have hours)
 			const userIds = [user.id];
 			if (hoursData && hoursData.length > 0) {
-				userIds.push(...hoursData.map(h => h.user_id));
+				userIds.push(...hoursData.map((h: WeeklyHours) => h.user_id));
 			}
 			
 			const { data: membersData, error: membersError } = await supabase
@@ -150,7 +143,11 @@ export default function HoursPage() {
 		} finally {
 			setLoading(false);
 		}
-	}
+	}, [currentWeek, supabase]);
+
+	useEffect(() => {
+		loadData();
+	}, [loadData]);
 
 	async function saveWeeklyHours() {
 		setLoading(true);

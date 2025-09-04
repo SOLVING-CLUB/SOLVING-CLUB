@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, File, X, Download } from "lucide-react";
+import { Upload, File, Download } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 interface FileUploadProps {
@@ -34,7 +34,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 		loadFiles();
 	}, [projectId]);
 
-	async function loadFiles() {
+	const loadFiles = useCallback(async () => {
 		try {
 			const { data, error } = await supabase
 				.from("project_files")
@@ -54,7 +54,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 		} catch (error) {
 			console.error("Unexpected error loading files:", error);
 		}
-	}
+	}, [projectId, supabase]);
 
 	const handleFileSelect = (selectedFiles: FileList | null) => {
 		if (!selectedFiles) return;
@@ -109,7 +109,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 			toast.success("File uploaded successfully");
 			loadFiles(); // Reload files after upload
 			onFileUploaded?.();
-		} catch (error) {
+		} catch {
 			toast.error("An error occurred while uploading the file");
 		} finally {
 			setUploading(false);
@@ -136,7 +136,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 			a.click();
 			document.body.removeChild(a);
 			URL.revokeObjectURL(url);
-		} catch (error) {
+		} catch {
 			toast.error("Failed to download file");
 		}
 	};

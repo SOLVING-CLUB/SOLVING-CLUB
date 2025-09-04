@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,8 @@ import {
 	Users, 
 	Calendar, 
 	FileText, 
-	MessageSquare, 
-	Upload, 
 	Settings, 
-	CheckCircle, 
-	Clock, 
-	AlertCircle,
 	UserPlus,
-	Paperclip,
 	Send,
 	MoreVertical
 } from "lucide-react";
@@ -34,7 +28,7 @@ interface Project {
 	id: string;
 	name: string;
 	description: string;
-	status: 'planning' | 'active' | 'completed' | 'on-hold';
+	    status: 'planning' | 'active' | 'completed' | 'on-hold';
 	created_at: string;
 	updated_at: string;
 	owner_id: string;
@@ -44,8 +38,8 @@ interface Task {
 	id: string;
 	title: string;
 	description: string;
-	status: 'todo' | 'in-progress' | 'completed';
-	priority: 'low' | 'medium' | 'high';
+	    status: 'todo' | 'in-progress' | 'completed';
+    priority: 'low' | 'medium' | 'high';
 	due_date: string;
 	assigned_to: string;
 	created_at: string;
@@ -103,7 +97,7 @@ export default function ProjectDetailPage() {
 		}
 	}, [projectId]);
 
-	async function loadProjectData() {
+	const loadProjectData = useCallback(async () => {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) return;
@@ -153,9 +147,9 @@ export default function ProjectDetailPage() {
 			.eq("project_id", projectId)
 			.order("created_at", { ascending: true });
 
-		setMessages(messagesData || []);
-		setLoading(false);
-	}
+		        setMessages(messagesData || []);
+        setLoading(false);
+    }, [projectId, supabase]);
 
 	async function createTask() {
 		if (!newTask.title.trim()) {
@@ -216,29 +210,29 @@ export default function ProjectDetailPage() {
 
 	const getStatusColor = (status: string) => {
 		switch (status) {
-			case 'planning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-			case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-			case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-			case 'on-hold': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-			default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+					case 'planning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+		case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+		case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+		case 'on-hold': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 		}
 	};
 
 	const getTaskStatusColor = (status: string) => {
 		switch (status) {
-			case 'todo': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-			case 'in-progress': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-			case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-			default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+					case 'todo': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+		case 'in-progress': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+		case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 		}
 	};
 
 	const getPriorityColor = (priority: string) => {
 		switch (priority) {
-			case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-			case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-			case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-			default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+					case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+		case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+		case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 		}
 	};
 
@@ -262,7 +256,7 @@ export default function ProjectDetailPage() {
 					<CardContent className="p-12 text-center">
 						<FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
 						<h3 className="text-lg font-semibold mb-2">Project not found</h3>
-						<p className="text-muted-foreground mb-4">The project you're looking for doesn't exist or you don't have access to it.</p>
+						<p className="text-muted-foreground mb-4">The project you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.</p>
 						<Link href="/dashboard/projects">
 							<Button>Back to Projects</Button>
 						</Link>
@@ -441,7 +435,7 @@ export default function ProjectDetailPage() {
 														id="task-priority"
 														className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 														value={newTask.priority}
-														onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as any }))}
+														onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as string }))}
 													>
 														<option value="low">Low</option>
 														<option value="medium">Medium</option>
