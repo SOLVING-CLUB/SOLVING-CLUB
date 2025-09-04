@@ -47,7 +47,7 @@ export default function LearningsPage() {
 		description: "",
 		url: "",
 		category: "programming",
-		difficulty: "beginner" as const,
+		difficulty: "beginner" as 'beginner' | 'intermediate' | 'advanced',
 		estimated_time: 30,
 		tags: [] as string[],
 		rating: 0
@@ -63,10 +63,6 @@ export default function LearningsPage() {
 		{ value: "devops", label: "DevOps" },
 		{ value: "other", label: "Other" }
 	];
-
-	useEffect(() => {
-		loadResources();
-	}, [loadResources]);
 
 	const loadResources = useCallback(async () => {
 		setLoading(true);
@@ -98,6 +94,10 @@ export default function LearningsPage() {
 			setLoading(false);
 		}
 	}, [supabase]);
+
+	useEffect(() => {
+		loadResources();
+	}, [loadResources]);
 
 	async function createResource() {
 		if (!newResource.title.trim() || !newResource.url.trim()) {

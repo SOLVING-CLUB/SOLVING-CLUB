@@ -295,15 +295,15 @@ export default function HoursPage() {
 			   hours.thursday_hours + hours.friday_hours + hours.saturday_hours + hours.sunday_hours;
 	}
 
-	function getDayHours(hours: WeeklyHours, day: string): number {
+	function getDayHours(hours: WeeklyHours | Partial<WeeklyHours>, day: string): number {
 		switch (day) {
-			case 'monday': return hours.monday_hours;
-			case 'tuesday': return hours.tuesday_hours;
-			case 'wednesday': return hours.wednesday_hours;
-			case 'thursday': return hours.thursday_hours;
-			case 'friday': return hours.friday_hours;
-			case 'saturday': return hours.saturday_hours;
-			case 'sunday': return hours.sunday_hours;
+			case 'monday': return hours.monday_hours || 0;
+			case 'tuesday': return hours.tuesday_hours || 0;
+			case 'wednesday': return hours.wednesday_hours || 0;
+			case 'thursday': return hours.thursday_hours || 0;
+			case 'friday': return hours.friday_hours || 0;
+			case 'saturday': return hours.saturday_hours || 0;
+			case 'sunday': return hours.sunday_hours || 0;
 			default: return 0;
 		}
 	}

@@ -30,8 +30,30 @@ interface ProfileSection {
 	title: string;
 	type: string;
 	position: number;
-	content: any;
+	content: Record<string, unknown>;
 }
+
+type PersonalContent = {
+	shortGoals?: string | string[];
+	longGoals?: string | string[];
+	hobbies?: string[];
+};
+
+type SkillsContent = {
+	topicsKnown?: string[];
+	topicsToLearn?: string[];
+};
+
+type ProjectLink = { label?: string; url: string };
+type Project = {
+	name?: string;
+	description?: string;
+	technologies?: string[];
+	status?: "completed" | "in-progress" | "planned" | "on-hold" | string;
+	links?: ProjectLink[];
+};
+
+type ProjectsContent = { projects?: Project[] };
 
 function formatLabel(labelKey: string): string {
 	const withSpaces = labelKey
@@ -41,20 +63,20 @@ function formatLabel(labelKey: string): string {
 	return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
 }
 
-function renderValue(value: any): React.ReactNode {
+function renderValue(value: unknown): React.ReactNode {
 	if (value == null) return <span className="text-muted-foreground">—</span>;
 	if (Array.isArray(value)) {
 		if (value.length === 0) return <span className="text-muted-foreground">—</span>;
 		return (
 			<div className="flex flex-wrap gap-2 pt-1">
-				{value.map((item: any, idx: number) => (
+				{value.map((item: unknown, idx: number) => (
 					<Badge key={`${String(item)}-${idx}`} variant="secondary">{String(item)}</Badge>
 				))}
 			</div>
 		);
 	}
 	if (typeof value === "object") {
-		const items = (value as string).items;
+		const items = (value as Record<string, unknown>).items;
 		if (Array.isArray(items)) return renderValue(items);
 		return (
 			<pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(value, null, 2)}</pre>
@@ -64,13 +86,13 @@ function renderValue(value: any): React.ReactNode {
 	return text.length > 0 ? <span className="font-medium">{text}</span> : <span className="text-muted-foreground">—</span>;
 }
 
-function renderSectionContent(content: any): React.ReactNode {
+function renderSectionContent(content: Record<string, unknown>): React.ReactNode {
 	if (content == null) return <span className="text-muted-foreground">—</span>;
 	if (typeof content === "string" || Array.isArray(content)) {
 		return renderValue(content);
 	}
 	if (typeof content === "object") {
-		const entries = Object.entries(content as Record<string, any>);
+		const entries = Object.entries(content);
 		if (entries.length === 0) return <span className="text-muted-foreground">—</span>;
 		return (
 			<div className="grid md:grid-cols-2 gap-4">
@@ -94,6 +116,25 @@ export default function ProfilePage() {
 	const [sections, setSections] = useState<ProfileSection[]>([]);
 	const [editingKey, setEditingKey] = useState<string | null>(null);
 	const [isEditMode, setIsEditMode] = useState(false);
+
+	function getSection<T = Record<string, unknown>>(key: string): (Omit<ProfileSection, 'content'> & { content: T }) | undefined {
+		const found = sections.find((s) => s.key === key);
+		if (!found) return undefined;
+		const { content, ...rest } = found;
+		return { ...rest, content: (content as unknown as T) };
+	}
+
+	function valueToCSV(value: unknown): string {
+		if (Array.isArray(value)) return value.map(String).filter(Boolean).join(", ");
+		if (typeof value === "string") return value;
+		return "";
+	}
+
+	function ensureStringArray(value: unknown): string[] {
+		if (Array.isArray(value)) return value.map(String).filter(Boolean);
+		if (typeof value === "string") return value.split(/\s*,\s*/).filter(Boolean);
+		return [];
+	}
 
 	useEffect(() => {
 		(async () => {
@@ -156,7 +197,7 @@ export default function ProfilePage() {
 		};
 		const { data, error } = await supabase
 			.from("profile_sections")
-			.upsert(payload as string, { onConflict: "user_id,key" })
+							.upsert(payload, { onConflict: "user_id,key" })
 			.select();
 		setLoading(false);
 		if (error) return toast.error(error.message);
@@ -293,20 +334,20 @@ export default function ProfilePage() {
 							<div>
 								<div className="text-sm text-muted-foreground mb-1">Short Term Goals</div>
 								<div className="font-medium">
-									{(sections.find(s=>s.key==="personal")?.content?.shortGoals) || "—"}
+									{valueToCSV(getSection<PersonalContent>("personal")?.content?.shortGoals) || "—"}
 								</div>
 							</div>
 							<div>
 								<div className="text-sm text-muted-foreground mb-1">Long Term Goals</div>
 								<div className="font-medium">
-									{(sections.find(s=>s.key==="personal")?.content?.longGoals) || "—"}
+									{valueToCSV(getSection<PersonalContent>("personal")?.content?.longGoals) || "—"}
 								</div>
 							</div>
 						</div>
 						<div>
 							<div className="text-sm text-muted-foreground mb-1">Hobbies & Interests</div>
 							<div className="font-medium">
-								{(sections.find(s=>s.key==="personal")?.content?.hobbies?.join(", ")) || "—"}
+								{ensureStringArray(getSection<PersonalContent>("personal")?.content?.hobbies).join(", ") || "—"}
 							</div>
 						</div>
 
@@ -314,8 +355,7 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									
-									
+									const fd = new FormData(e.currentTarget);
 									await upsertSection({
 										id: sections.find(s=>s.key==="personal")?.id || "",
 										key: "personal",
@@ -323,20 +363,20 @@ export default function ProfilePage() {
 										type: "personal",
 										position: 0,
 										content: {
-											shortGoals: formData.get("shortGoals") || "",
-											longGoals: formData.get("longGoals") || "",
-											hobbies: String(formData.get("hobbies") || "").split(/\s*,\s*/),
+											shortGoals: String(fd.get("shortGoals") || ""),
+											longGoals: String(fd.get("longGoals") || ""),
+											hobbies: String(fd.get("hobbies") || "").split(/\s*,\s*/).filter(Boolean),
 										},
 									});
 								}}
 								className="space-y-4 border-t pt-4"
 							>
 								<Label htmlFor="shortGoals">Short Term Goals</Label>
-								<ChipInput name="shortGoals" defaultValue={sections.find(s=>s.key==="personal")?.content?.shortGoals || ""} placeholder="Enter your short term goals" defaultModeChips={true} />
+								<ChipInput name="shortGoals" defaultValue={valueToCSV(getSection<PersonalContent>("personal")?.content?.shortGoals)} placeholder="Enter your short term goals" defaultModeChips={true} />
 								<Label htmlFor="longGoals">Long Term Goals</Label>
-								<ChipInput name="longGoals" defaultValue={sections.find(s=>s.key==="personal")?.content?.longGoals || ""} placeholder="Enter your long term goals" defaultModeChips={true} />
+								<ChipInput name="longGoals" defaultValue={valueToCSV(getSection<PersonalContent>("personal")?.content?.longGoals)} placeholder="Enter your long term goals" defaultModeChips={true} />
 								<Label htmlFor="hobbies">Hobbies & Interests</Label>
-								<ChipInput name="hobbies" defaultValue={(sections.find(s=>s.key==="personal")?.content?.hobbies || []).join(", ")} placeholder="Add your hobbies and interests" defaultModeChips={true} />
+								<ChipInput name="hobbies" defaultValue={ensureStringArray(getSection<PersonalContent>("personal")?.content?.hobbies).join(", ")} placeholder="Add your hobbies and interests" defaultModeChips={true} />
 								<div className="flex justify-end gap-2">
 									<Button type="button" variant="ghost" onClick={() => setEditingKey(null)}>Cancel</Button>
 									<Button type="submit">Save</Button>
@@ -380,13 +420,13 @@ export default function ProfilePage() {
 							<div>
 								<div className="text-sm text-muted-foreground mb-1">Topics Known</div>
 								<div className="font-medium">
-									{(sections.find(s=>s.key==="skills")?.content?.topicsKnown?.join(", ")) || "—"}
+									{ensureStringArray(getSection<SkillsContent>("skills")?.content?.topicsKnown).join(", ") || "—"}
 								</div>
 							</div>
 							<div>
 								<div className="text-sm text-muted-foreground mb-1">Topics To Learn</div>
 								<div className="font-medium">
-									{(sections.find(s=>s.key==="skills")?.content?.topicsToLearn?.join(", ")) || "—"}
+									{ensureStringArray(getSection<SkillsContent>("skills")?.content?.topicsToLearn).join(", ") || "—"}
 								</div>
 							</div>
 						</div>
@@ -395,8 +435,7 @@ export default function ProfilePage() {
 							<form
 								onSubmit={async (e) => {
 									e.preventDefault();
-									
-									
+									const fd = new FormData(e.currentTarget);
 									await upsertSection({
 										id: sections.find(s=>s.key==="skills")?.id || "",
 										key: "skills",
@@ -404,17 +443,17 @@ export default function ProfilePage() {
 										type: "skills",
 										position: 1,
 										content: {
-											topicsKnown: String(formData.get("topicsKnown") || "").split(/\s*,\s*/),
-											topicsToLearn: String(formData.get("topicsToLearn") || "").split(/\s*,\s*/),
+											topicsKnown: String(fd.get("topicsKnown") || "").split(/\s*,\s*/).filter(Boolean),
+											topicsToLearn: String(fd.get("topicsToLearn") || "").split(/\s*,\s*/).filter(Boolean),
 										},
 									});
 								}}
 								className="space-y-4 border-t pt-4"
 							>
 								<Label htmlFor="topicsKnown">Topics Known</Label>
-								<ChipInput name="topicsKnown" defaultValue={(sections.find(s=>s.key==="skills")?.content?.topicsKnown || []).join(", ")} placeholder="Enter topics you're proficient in" defaultModeChips={true} />
+								<ChipInput name="topicsKnown" defaultValue={ensureStringArray(getSection<SkillsContent>("skills")?.content?.topicsKnown).join(", ")} placeholder="Enter topics you're proficient in" defaultModeChips={true} />
 								<Label htmlFor="topicsToLearn">Topics To Learn</Label>
-								<ChipInput name="topicsToLearn" defaultValue={(sections.find(s=>s.key==="skills")?.content?.topicsToLearn || []).join(", ")} placeholder="Enter topics you want to learn" defaultModeChips={true} />
+								<ChipInput name="topicsToLearn" defaultValue={ensureStringArray(getSection<SkillsContent>("skills")?.content?.topicsToLearn).join(", ")} placeholder="Enter topics you want to learn" defaultModeChips={true} />
 								<div className="flex justify-end gap-2">
 									<Button type="button" variant="ghost" onClick={() => setEditingKey(null)}>Cancel</Button>
 									<Button type="submit">Save</Button>
@@ -532,73 +571,78 @@ export default function ProfilePage() {
 						</div>
 					</CardHeader>
 					<CardContent>
-						{(sections.find(s => s.key === "projects")?.content?.projects || []).length > 0 ? (
+						{((getSection<ProjectsContent>("projects")?.content?.projects ?? []) as Project[]).length > 0 ? (
 							<div className="space-y-4">
-								{(sections.find(s => s.key === "projects")?.content?.projects || []).map((project: any, index: number) => (
-									<div key={index} className="border rounded-lg p-4 bg-muted/30">
-										<div className="flex items-start justify-between gap-3">
-											<div className="flex-1">
-												<div className="flex items-center gap-2 mb-2">
-													<h4 className="font-semibold text-lg">{project.name}</h4>
-													{project.status && (
-														<Badge variant={project.status === 'completed' ? 'default' : project.status === 'in-progress' ? 'secondary' : 'outline'}>
-															{project.status === 'completed' ? 'Completed' : project.status === 'in-progress' ? 'In Progress' : project.status}
-														</Badge>
+								{(getSection<ProjectsContent>("projects")?.content?.projects ?? []).map((projectRaw: Record<string, unknown>, index: number) => {
+									const project = projectRaw as Project;
+									const technologies = project.technologies ?? [];
+									const links = project.links ?? [];
+									return (
+										<div key={index} className="border rounded-lg p-4 bg-muted/30">
+											<div className="flex items-start justify-between gap-3">
+												<div className="flex-1">
+													<div className="flex items-center gap-2 mb-2">
+														<h4 className="font-semibold text-lg">{String(project.name ?? "")}</h4>
+														{project.status && (
+															<Badge variant={project.status === 'completed' ? 'default' : project.status === 'in-progress' ? 'secondary' : 'outline'}>
+																{project.status === 'completed' ? 'Completed' : project.status === 'in-progress' ? 'In Progress' : String(project.status)}
+															</Badge>
+														)}
+													</div>
+													{project.description && (
+														<p className="text-muted-foreground mb-3">{String(project.description)}</p>
+													)}
+													{technologies && technologies.length > 0 && (
+														<div className="flex flex-wrap gap-2 mb-3">
+															{technologies.map((tech: string, techIndex: number) => (
+																<Badge key={techIndex} variant="secondary" className="text-xs">
+																	{tech}
+																</Badge>
+															))}
+														</div>
+													)}
+													{links && links.length > 0 && (
+														<div className="flex flex-wrap gap-2">
+															{links.map((link: ProjectLink, linkIndex: number) => (
+																<a
+																	key={linkIndex}
+																	href={String(link.url)}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+																>
+																	<LinkIcon className="h-3 w-3" />
+																	{link.label || 'View Project'}
+																</a>
+															))}
+														</div>
 													)}
 												</div>
-												{project.description && (
-													<p className="text-muted-foreground mb-3">{project.description}</p>
-												)}
-												{project.technologies && project.technologies.length > 0 && (
-													<div className="flex flex-wrap gap-2 mb-3">
-														{project.technologies.map((tech: string, techIndex: number) => (
-															<Badge key={techIndex} variant="secondary" className="text-xs">
-																{tech}
-															</Badge>
-														))}
-													</div>
-												)}
-												{project.links && project.links.length > 0 && (
-													<div className="flex flex-wrap gap-2">
-														{project.links.map((link: any, linkIndex: number) => (
-															<a
-																key={linkIndex}
-																href={link.url}
-																target="_blank"
-																rel="noopener noreferrer"
-																className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-															>
-																<LinkIcon className="h-3 w-3" />
-																{link.label || 'View Project'}
-															</a>
-														))}
-													</div>
+												{isEditMode && (
+													<Button
+														size="sm"
+														variant="ghost"
+														onClick={() => {
+															const projects = (getSection<ProjectsContent>("projects")?.content?.projects ?? []) as Project[];
+															const updatedProjects = projects.filter((_: unknown, i: number) => i !== index);
+															upsertSection({
+																id: sections.find(s => s.key === "projects")?.id || "",
+																key: "projects",
+																title: "Projects",
+																type: "projects",
+																position: 2,
+																content: { projects: updatedProjects }
+															});
+														}}
+														className="text-destructive hover:text-destructive"
+													>
+														×
+													</Button>
 												)}
 											</div>
-											{isEditMode && (
-												<Button
-													size="sm"
-													variant="ghost"
-													onClick={() => {
-														const projects = sections.find(s => s.key === "projects")?.content?.projects || [];
-														const updatedProjects = projects.filter((_: any, i: number) => i !== index);
-														upsertSection({
-															id: sections.find(s => s.key === "projects")?.id || "",
-															key: "projects",
-															title: "Projects",
-															type: "projects",
-															position: 2,
-															content: { projects: updatedProjects }
-														});
-													}}
-													className="text-destructive hover:text-destructive"
-												>
-													×
-												</Button>
-											)}
 										</div>
-									</div>
-								))}
+									);
+								})}
 							</div>
 						) : (
 							<div className="text-center py-8 text-muted-foreground">
@@ -618,20 +662,21 @@ export default function ProfilePage() {
 									
 									
 									
+									const fd = new FormData(e.currentTarget);
 									const newProject = {
-										name: String(formData.get("project_name") || ""),
-										description: String(formData.get("project_description") || ""),
-										technologies: String(formData.get("project_technologies") || "").split(/\s*,\s*/).filter(Boolean),
-										status: String(formData.get("project_status") || ""),
+										name: String(fd.get("project_name") || ""),
+										description: String(fd.get("project_description") || ""),
+										technologies: String(fd.get("project_technologies") || "").split(/\s*,\s*/).filter(Boolean),
+										status: String(fd.get("project_status") || ""),
 										links: [
 											{
-												label: String(formData.get("project_link_label") || "Live Demo"),
-												url: String(formData.get("project_link_url") || "")
+												label: String(fd.get("project_link_label") || "Live Demo"),
+												url: String(fd.get("project_link_url") || "")
 											}
 										].filter(link => link.url)
 									};
 
-									const existingProjects = sections.find(s => s.key === "projects")?.content?.projects || [];
+									const existingProjects = (getSection<ProjectsContent>("projects")?.content?.projects ?? []) as Project[];
 									const updatedProjects = [...existingProjects, newProject];
 
 									await upsertSection({
@@ -643,7 +688,7 @@ export default function ProfilePage() {
 										content: { projects: updatedProjects }
 									});
 
-									form.reset();
+									e.currentTarget.reset();
 								}}
 								className="border-t pt-4 space-y-4"
 							>
@@ -773,12 +818,14 @@ export default function ProfilePage() {
 											e.preventDefault();
 											
 											
-											let content: string = {};
+											const fd = new FormData(e.currentTarget);
+											let parsed: unknown;
 											try {
-												content = JSON.parse(String(formData.get("content") || "{}"));
+												parsed = JSON.parse(String(fd.get("content") || "{}"));
 											} catch {
-												content = { value: String(formData.get("content") || "") };
+												parsed = { value: String(fd.get("content") || "") };
 											}
+											const content: Record<string, unknown> = (parsed && typeof parsed === "object") ? (parsed as Record<string, unknown>) : { value: String(parsed ?? "") };
 											await upsertSection({ id: s.id, key: s.key, title: s.title, type: s.type, position: s.position, content });
 										}}
 										className="border-t pt-4 space-y-4"
@@ -815,17 +862,19 @@ export default function ProfilePage() {
 									e.preventDefault();
 									
 									
-									const key = String(formData.get("new_key") || "").trim() || `custom_${Date.now()}`;
-									const title = String(formData.get("new_title") || "Untitled");
+									const fd = new FormData(e.currentTarget);
+									const key = String(fd.get("new_key") || "").trim() || `custom_${Date.now()}`;
+									const title = String(fd.get("new_title") || "Untitled");
 									const position = sections.length + 1;
-									let content: string = {};
+									let parsed: unknown;
 									try {
-										content = JSON.parse(String(formData.get("new_content") || "{}"));
+										parsed = JSON.parse(String(fd.get("new_content") || "{}"));
 									} catch {
-										content = { value: String(formData.get("new_content") || "") };
+										parsed = { value: String(fd.get("new_content") || "") };
 									}
+									const content: Record<string, unknown> = (parsed && typeof parsed === "object") ? (parsed as Record<string, unknown>) : { value: String(parsed ?? "") };
 									await upsertSection({ id: "", key, title, type: "custom", position, content });
-									form.reset();
+									e.currentTarget.reset();
 								}}
 								className="space-y-4"
 							>

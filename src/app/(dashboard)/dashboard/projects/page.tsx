@@ -36,10 +36,6 @@ export default function ProjectsPage() {
 		status: "planning" as const
 	});
 
-	useEffect(() => {
-		loadProjects();
-	}, [loadProjects]);
-
 	const loadProjects = useCallback(async () => {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
@@ -122,6 +118,10 @@ export default function ProjectsPage() {
 			setLoading(false);
 		}
 	}, [supabase]);
+
+	useEffect(() => {
+		loadProjects();
+	}, [loadProjects]);
 
 	async function createProject() {
 		if (!newProject.name.trim()) {
