@@ -18,7 +18,8 @@ import {
 	Settings, 
 	UserPlus,
 	Send,
-	MoreVertical
+	MoreVertical,
+	User
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -32,6 +33,11 @@ interface Project {
 	created_at: string;
 	updated_at: string;
 	owner_id: string;
+	client_name?: string;
+	client_email?: string;
+	client_company?: string;
+	client_phone?: string;
+	client_notes?: string;
 }
 
 interface Task {
@@ -299,6 +305,15 @@ export default function ProjectDetailPage() {
 								</Badge>
 							</div>
 							<CardDescription>{project.description}</CardDescription>
+							{(project.client_name || project.client_company) && (
+								<div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+									<User className="h-4 w-4" />
+									<span>{project.client_name || 'Client'}</span>
+									{project.client_company && (
+										<span className="text-muted-foreground/80">— {project.client_company}</span>
+									)}
+								</div>
+							)}
 						</div>
 						<div className="flex items-center gap-2">
 							<Button variant="outline" size="sm">

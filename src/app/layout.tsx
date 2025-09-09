@@ -14,8 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "Solving Club Dashboard",
-	description: "Learning, Projects, Profiles, Hours",
+	title: {
+		default: "Solving Club — Collaborate, Learn, and Ship",
+		template: "%s — Solving Club",
+	},
+	description: "A focused workspace for profiles, hours, learnings, and projects.",
+	keywords: ["Solving Club", "project management", "learnings", "hours", "profiles", "Next.js", "Supabase"],
+	robots: {
+		index: true,
+		follow: true,
+	},
 };
 
 export default function RootLayout({

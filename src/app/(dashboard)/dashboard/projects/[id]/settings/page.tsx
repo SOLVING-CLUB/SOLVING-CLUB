@@ -25,6 +25,11 @@ interface Project {
 	description: string;
 	    status: 'planning' | 'active' | 'completed' | 'on-hold';
 	owner_id: string;
+	client_name?: string;
+	client_email?: string;
+	client_company?: string;
+	client_phone?: string;
+	client_notes?: string;
 }
 
 interface Member {
@@ -49,14 +54,22 @@ export default function ProjectSettingsPage() {
 	const [loading, setLoading] = useState(false);
 	const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
 	const [inviteEmail, setInviteEmail] = useState("");
+	const [inviteCandidates, setInviteCandidates] = useState<{ id: string; full_name: string; email: string }[]>([]);
+	const [selectedInviteUserId, setSelectedInviteUserId] = useState("");
+	const [inviteSearch, setInviteSearch] = useState("");
 	
 	// Project settings form
 	type ProjectStatus = 'planning' | 'active' | 'completed' | 'on-hold';
-	type ProjectSettings = { name: string; description: string; status: ProjectStatus };
+	type ProjectSettings = { name: string; description: string; status: ProjectStatus; client_name?: string; client_email?: string; client_company?: string; client_phone?: string; client_notes?: string };
 	const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
 		name: "",
 		description: "",
-		status: "planning"
+		status: "planning",
+		client_name: "",
+		client_email: "",
+		client_company: "",
+		client_phone: "",
+		client_notes: "",
 	});
 
 	useEffect(() => {
@@ -85,7 +98,12 @@ export default function ProjectSettingsPage() {
 		setProjectSettings({
 			name: projectData.name,
 			description: projectData.description || "",
-			status: projectData.status as ProjectStatus
+			status: projectData.status as ProjectStatus,
+			client_name: projectData.client_name || "",
+			client_email: projectData.client_email || "",
+			client_company: projectData.client_company || "",
+			client_phone: projectData.client_phone || "",
+			client_notes: projectData.client_notes || "",
 		});
 
 		// Load members
@@ -98,8 +116,24 @@ export default function ProjectSettingsPage() {
 			.eq("project_id", projectId);
 
 		        setMembers(membersData || []);
+
+		// Load invite candidates (all profiles excluding current members)
+		const { data: profilesData } = await supabase
+			.from("profiles")
+			.select("id, full_name, email")
+			.order("full_name", { ascending: true });
+		const memberIds = (membersData || []).map((m: any) => m.user_id);
+		const candidates = (profilesData || []).filter((p: any) => !memberIds.includes(p.id));
+		setInviteCandidates(candidates as { id: string; full_name: string; email: string }[]);
         setLoading(false);
     }, [projectId, supabase]);
+
+	useEffect(() => {
+		if (isInviteDialogOpen) {
+			setInviteSearch("");
+			setSelectedInviteUserId("");
+		}
+	}, [isInviteDialogOpen]);
 
 	useEffect(() => {
 		if (projectId) {
@@ -119,7 +153,12 @@ export default function ProjectSettingsPage() {
 			.update({
 				name: projectSettings.name,
 				description: projectSettings.description,
-				status: projectSettings.status
+				status: projectSettings.status,
+				client_name: projectSettings.client_name || null,
+				client_email: projectSettings.client_email || null,
+				client_company: projectSettings.client_company || null,
+				client_phone: projectSettings.client_phone || null,
+				client_notes: projectSettings.client_notes || null,
 			})
 			.eq("id", projectId);
 
@@ -186,6 +225,44 @@ export default function ProjectSettingsPage() {
 		toast.success("Member invited successfully");
 		setInviteEmail("");
 		setIsInviteDialogOpen(false);
+		loadProjectData();
+	}
+
+	async function inviteExistingUser() {
+		if (!selectedInviteUserId) {
+			toast.error("Please select a user to add");
+			return;
+		}
+
+		setLoading(true);
+		// Check if already a member
+		const { data: existingMember } = await supabase
+			.from("project_members")
+			.select("id")
+			.eq("project_id", projectId)
+			.eq("user_id", selectedInviteUserId)
+			.single();
+
+		if (existingMember) {
+			toast.error("User is already a member of this project");
+			setLoading(false);
+			return;
+		}
+
+		const { error } = await supabase
+			.from("project_members")
+			.insert({ project_id: projectId, user_id: selectedInviteUserId, role: "member" });
+
+		if (error) {
+			toast.error("Failed to add member");
+			setLoading(false);
+			return;
+		}
+
+		toast.success("Member added successfully");
+		setIsInviteDialogOpen(false);
+		setSelectedInviteUserId("");
+		setInviteSearch("");
 		loadProjectData();
 	}
 
@@ -347,7 +424,7 @@ export default function ProjectSettingsPage() {
 									<DialogHeader>
 										<DialogTitle>Invite Team Member</DialogTitle>
 										<DialogDescription>
-											Invite a new member to join this project by their email address.
+											Invite a new member to join this project by their email address, or add an existing Solving Club member.
 										</DialogDescription>
 									</DialogHeader>
 									<div className="space-y-4">
@@ -361,6 +438,27 @@ export default function ProjectSettingsPage() {
 												onChange={(e) => setInviteEmail(e.target.value)}
 											/>
 										</div>
+										<div className="space-y-2">
+											<Label htmlFor="invite-search">Or add existing member</Label>
+											<Input
+												id="invite-search"
+												placeholder="Search by name or email"
+												value={inviteSearch}
+												onChange={(e) => setInviteSearch(e.target.value)}
+											/>
+											<select
+												className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+												value={selectedInviteUserId}
+												onChange={(e) => setSelectedInviteUserId(e.target.value)}
+											>
+												<option value="">Select a user...</option>
+												{inviteCandidates
+													.filter(u => (u.full_name || "").toLowerCase().includes(inviteSearch.toLowerCase()) || (u.email || "").toLowerCase().includes(inviteSearch.toLowerCase()))
+													.map(u => (
+														<option key={u.id} value={u.id}>{u.full_name || u.email} {u.email ? `— ${u.email}` : ""}</option>
+													))}
+											</select>
+										</div>
 									</div>
 									<DialogFooter>
 										<Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
@@ -368,6 +466,9 @@ export default function ProjectSettingsPage() {
 										</Button>
 										<Button onClick={inviteMember} disabled={loading}>
 											{loading ? "Inviting..." : "Send Invite"}
+										</Button>
+										<Button onClick={inviteExistingUser} disabled={loading || !selectedInviteUserId}>
+											{loading ? "Adding..." : "Add Existing"}
 										</Button>
 									</DialogFooter>
 								</DialogContent>
@@ -434,6 +535,64 @@ export default function ProjectSettingsPage() {
 							Delete Project
 						</Button>
 					</div>
+				</CardContent>
+			</Card>
+
+			{/* Client Details */}
+			<Card>
+				<CardHeader className="pb-4">
+					<CardTitle className="text-lg">Client Details</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<Label htmlFor="client-name">Client Name</Label>
+							<Input
+								id="client-name"
+								value={projectSettings.client_name}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, client_name: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="client-email">Client Email</Label>
+							<Input
+								id="client-email"
+								type="email"
+								value={projectSettings.client_email}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, client_email: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="client-company">Client Company</Label>
+							<Input
+								id="client-company"
+								value={projectSettings.client_company}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, client_company: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="client-phone">Client Phone</Label>
+							<Input
+								id="client-phone"
+								type="tel"
+								value={projectSettings.client_phone}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, client_phone: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2 sm:col-span-2">
+							<Label htmlFor="client-notes">Client Notes</Label>
+							<Textarea
+								id="client-notes"
+								rows={4}
+								value={projectSettings.client_notes}
+								onChange={(e) => setProjectSettings(prev => ({ ...prev, client_notes: e.target.value }))}
+							/>
+						</div>
+					</div>
+					<Button onClick={updateProject} disabled={loading} className="w-full">
+						<Save className="h-4 w-4 mr-2" />
+						{loading ? "Saving..." : "Save Changes"}
+					</Button>
 				</CardContent>
 			</Card>
 		</div>

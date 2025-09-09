@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye } from "lucide-react";
+import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye, User } from "lucide-react";
 import Link from "next/link";
 
 interface Project {
@@ -20,6 +20,11 @@ interface Project {
 	created_at: string;
 	updated_at: string;
 	owner_id: string;
+	client_name?: string;
+	client_email?: string;
+	client_company?: string;
+	client_phone?: string;
+	client_notes?: string;
 	member_count?: number;
 	task_count?: number;
 }
@@ -33,18 +38,40 @@ type NewProject = {
 	name: string;
 	description: string;
 	status: Project['status'];
+	client_name?: string;
+	client_email?: string;
+	client_company?: string;
+	client_phone?: string;
+	client_notes?: string;
+};
+
+type Client = {
+	id: string;
+	name: string;
+	email: string | null;
+	company: string | null;
+	phone: string | null;
+	notes: string | null;
 };
 
 export default function ProjectsPage() {
 	const supabase = getSupabaseBrowserClient();
 	const [projects, setProjects] = useState<Project[]>([]);
+	const [clients, setClients] = useState<Client[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [useExistingClient, setUseExistingClient] = useState(true);
+	const [selectedClientId, setSelectedClientId] = useState<string>("");
 	const [newProject, setNewProject] = useState<NewProject>({
 		name: "",
 		description: "",
-		status: "planning"
+		status: "planning",
+		client_name: "",
+		client_email: "",
+		client_company: "",
+		client_phone: "",
+		client_notes: "",
 	});
 
 	const loadProjects = useCallback(async () => {
@@ -73,14 +100,12 @@ export default function ProjectsPage() {
 			// Then, get all projects where user is a member
 			const { data: memberProjects, error: memberError } = await supabase
 				.from("project_members")
-				.select(`
-					project_id,
-					projects(*)
-				`)
+				.select(`project_id, projects(*)`)
 				.eq("user_id", user.id)
 				.neq("role", "owner"); // Exclude owner role since we already got those
 
-			if (memberError) {
+			const hasMemberError = Boolean((memberError as unknown as { message?: string })?.message);
+			if (hasMemberError) {
 				console.error("Error loading member projects:", memberError);
 				toast.error("Failed to load projects");
 				setLoading(false);
@@ -89,9 +114,9 @@ export default function ProjectsPage() {
 
 			// Combine and deduplicate projects
 			const ownedList: Project[] = (ownedProjects as Project[] | null) ?? [];
-			const memberList: MemberProjectsRow[] = (Array.isArray(memberProjects) ? (memberProjects as unknown as MemberProjectsRow[]) : []) ?? [];
+			const memberList: MemberProjectsRow[] = Array.isArray(memberProjects) ? (memberProjects as unknown as MemberProjectsRow[]) : [];
 			const memberProjectItems: Project[] = memberList
-				.flatMap((mp) => (Array.isArray(mp.projects) ? mp.projects : [mp.projects]))
+				.map((mp) => mp.projects)
 				.filter((p): p is Project => Boolean(p));
 			const allProjects: Project[] = [...ownedList, ...memberProjectItems];
 
@@ -132,9 +157,23 @@ export default function ProjectsPage() {
 		}
 	}, [supabase]);
 
+	const loadClients = useCallback(async () => {
+		const { data: { user } } = await supabase.auth.getUser();
+		if (!user) return;
+		const { data, error } = await supabase
+			.from("clients")
+			.select("*")
+			.eq("owner_id", user.id)
+			.order("name", { ascending: true });
+		if (!error && Array.isArray(data)) {
+			setClients(data as unknown as Client[]);
+		}
+	}, [supabase]);
+
 	useEffect(() => {
 		loadProjects();
-	}, [loadProjects]);
+		loadClients();
+	}, [loadProjects, loadClients]);
 
 	async function createProject() {
 		if (!newProject.name.trim()) {
@@ -151,14 +190,47 @@ export default function ProjectsPage() {
 		}
 
 		try {
+			let clientIdToUse: string | null = null;
+			if (useExistingClient && selectedClientId) {
+				clientIdToUse = selectedClientId;
+			} else if (!useExistingClient && newProject.client_name?.trim()) {
+				// Create a new client first
+				const { data: newClient, error: clientError } = await supabase
+					.from("clients")
+					.insert({
+						owner_id: user.id,
+						name: newProject.client_name!,
+						email: newProject.client_email || null,
+						company: newProject.client_company || null,
+						phone: newProject.client_phone || null,
+						notes: newProject.client_notes || null,
+					})
+					.select()
+					.single();
+				if (clientError) {
+					toast.error("Failed to create client");
+					setLoading(false);
+					return;
+				}
+				clientIdToUse = newClient.id as string;
+			}
+
+			const payload: any = {
+				name: newProject.name,
+				description: newProject.description,
+				status: newProject.status,
+				owner_id: user.id,
+				client_id: clientIdToUse,
+				client_name: clientIdToUse ? null : (newProject.client_name || null),
+				client_email: clientIdToUse ? null : (newProject.client_email || null),
+				client_company: clientIdToUse ? null : (newProject.client_company || null),
+				client_phone: clientIdToUse ? null : (newProject.client_phone || null),
+				client_notes: clientIdToUse ? null : (newProject.client_notes || null),
+			};
+
 			const { data, error } = await supabase
 				.from("projects")
-				.insert({
-					name: newProject.name,
-					description: newProject.description,
-					status: newProject.status,
-					owner_id: user.id
-				})
+				.insert(payload)
 				.select()
 				.single();
 
@@ -184,7 +256,16 @@ export default function ProjectsPage() {
 			}
 
 			toast.success("Project created successfully");
-			setNewProject({ name: "", description: "", status: "planning" });
+			setNewProject({ 
+				name: "", 
+				description: "", 
+				status: "planning",
+				client_name: "",
+				client_email: "",
+				client_company: "",
+				client_phone: "",
+				client_notes: "",
+			});
 			setIsCreateDialogOpen(false);
 			setLoading(false);
 			loadProjects();
@@ -197,7 +278,7 @@ export default function ProjectsPage() {
 
 	const filteredProjects = projects.filter(project =>
 		project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		project.description.toLowerCase().includes(searchTerm.toLowerCase())
+		(project.description || "").toLowerCase().includes(searchTerm.toLowerCase())
 	);
 
 	const getStatusColor = (status: string) => {
@@ -223,6 +304,7 @@ export default function ProjectsPage() {
 							</CardTitle>
 							<CardDescription>Manage your freelance projects, collaborate with team members, and track progress.</CardDescription>
 						</div>
+
 						<Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
 							<DialogTrigger asChild>
 								<Button className="w-full sm:w-auto">
@@ -270,6 +352,85 @@ export default function ProjectsPage() {
 											<option value="completed">Completed</option>
 											<option value="on-hold">On Hold</option>
 										</select>
+									</div>
+									{/* Client selection */}
+									<div className="space-y-2 pt-2">
+										<Label>Client</Label>
+										<div className="flex items-center gap-3 text-sm">
+											<label className="flex items-center gap-2">
+												<input type="radio" checked={useExistingClient} onChange={() => setUseExistingClient(true)} />
+												<span>Attach existing</span>
+											</label>
+											<label className="flex items-center gap-2">
+												<input type="radio" checked={!useExistingClient} onChange={() => setUseExistingClient(false)} />
+												<span>New client</span>
+											</label>
+										</div>
+										{useExistingClient ? (
+											<div className="mt-3">
+												<select
+													className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+													value={selectedClientId}
+													onChange={(e) => setSelectedClientId(e.target.value)}
+												>
+													<option value="">Select a client...</option>
+													{clients.map((c) => (
+														<option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>
+													))}
+												</select>
+											</div>
+										) : (
+											<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+												<div className="space-y-2">
+													<Label htmlFor="client-name">Client Name</Label>
+													<Input
+														id="client-name"
+														placeholder="e.g. Jane Doe"
+														value={newProject.client_name}
+														onChange={(e) => setNewProject(prev => ({ ...prev, client_name: e.target.value }))}
+													/>
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="client-email">Client Email</Label>
+													<Input
+														id="client-email"
+														type="email"
+														placeholder="client@example.com"
+														value={newProject.client_email}
+														onChange={(e) => setNewProject(prev => ({ ...prev, client_email: e.target.value }))}
+													/>
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="client-company">Client Company</Label>
+													<Input
+														id="client-company"
+														placeholder="e.g. Acme Inc."
+														value={newProject.client_company}
+														onChange={(e) => setNewProject(prev => ({ ...prev, client_company: e.target.value }))}
+													/>
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="client-phone">Client Phone</Label>
+													<Input
+														id="client-phone"
+														type="tel"
+														placeholder="e.g. +1 555 123 4567"
+														value={newProject.client_phone}
+														onChange={(e) => setNewProject(prev => ({ ...prev, client_phone: e.target.value }))}
+													/>
+												</div>
+												<div className="space-y-2 sm:col-span-2">
+													<Label htmlFor="client-notes">Client Notes</Label>
+													<Textarea
+														id="client-notes"
+														placeholder="Additional context about the client..."
+														rows={3}
+														value={newProject.client_notes}
+														onChange={(e) => setNewProject(prev => ({ ...prev, client_notes: e.target.value }))}
+													/>
+												</div>
+											</div>
+										)}
 									</div>
 								</div>
 								<DialogFooter>
@@ -369,6 +530,7 @@ export default function ProjectsPage() {
 										{project.description}
 									</p>
 								)}
+
 								
 								<div className="flex items-center justify-between text-sm text-muted-foreground">
 									<div className="flex items-center gap-4">

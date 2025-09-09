@@ -87,9 +87,21 @@ create table if not exists public.projects (
 	description text,
 	status text not null default 'planning' check (status in ('planning', 'active', 'completed', 'on-hold')),
 	owner_id uuid references auth.users(id) on delete cascade not null,
+	client_name text,
+	client_email text,
+	client_company text,
+	client_phone text,
+	client_notes text,
 	created_at timestamptz default now(),
 	updated_at timestamptz default now()
 );
+
+-- Ensure client columns exist for existing deployments
+alter table public.projects add column if not exists client_name text;
+alter table public.projects add column if not exists client_email text;
+alter table public.projects add column if not exists client_company text;
+alter table public.projects add column if not exists client_phone text;
+alter table public.projects add column if not exists client_notes text;
 
 -- Project members table
 create table if not exists public.project_members (
@@ -152,6 +164,38 @@ alter table public.project_tasks enable row level security;
 alter table public.project_messages enable row level security;
 alter table public.project_files enable row level security;
 
+-- Clients table
+create table if not exists public.clients (
+    id uuid primary key default gen_random_uuid(),
+    owner_id uuid references auth.users(id) on delete cascade not null,
+    name text not null,
+    email text,
+    company text,
+    phone text,
+    notes text,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+);
+
+create index if not exists clients_owner_idx on public.clients(owner_id);
+
+create or replace trigger clients_set_updated_at
+before update on public.clients
+for each row execute function public.set_updated_at();
+
+alter table public.clients enable row level security;
+
+drop policy if exists "Users can view their clients" on public.clients;
+create policy "Users can view their clients" on public.clients
+    for select using (auth.uid() = owner_id);
+
+drop policy if exists "Users can manage their clients" on public.clients;
+create policy "Users can manage their clients" on public.clients
+    for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+-- Link projects to clients
+alter table public.projects add column if not exists client_id uuid references public.clients(id) on delete set null;
+
 -- Projects policies
 drop policy if exists "Users can view projects they own or are members of" on public.projects;
 create policy "Users can view projects they own or are members of" on public.projects
@@ -173,12 +217,13 @@ create policy "Project owners can delete projects" on public.projects
 	for delete using (auth.uid() = owner_id);
 
 -- Project members policies
-drop policy if exists "Users can view project members" on public.project_members;
-create policy "Users can view project members" on public.project_members
-	for select using (
-		auth.uid() = user_id or 
-		auth.uid() in (select user_id from public.project_members where project_id = project_members.project_id)
-	);
+-- Replace recursive view policy with non-recursive one
+DROP POLICY IF EXISTS "Users can view project members" ON public.project_members;
+CREATE POLICY "Users can view project members" ON public.project_members
+    FOR SELECT USING (
+        auth.uid() = user_id OR 
+        auth.uid() = (SELECT owner_id FROM public.projects WHERE id = project_members.project_id)
+    );
 
 drop policy if exists "Project owners can manage members" on public.project_members;
 create policy "Project owners can manage members" on public.project_members
