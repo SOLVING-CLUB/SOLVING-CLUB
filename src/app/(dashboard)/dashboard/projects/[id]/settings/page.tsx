@@ -455,4 +455,55 @@ export default function ProjectSettingsPage() {
 												{inviteCandidates
 													.filter(u => (u.full_name || "").toLowerCase().includes(inviteSearch.toLowerCase()) || (u.email || "").toLowerCase().includes(inviteSearch.toLowerCase()))
 													.map(u => (
-														<option key={u.id} value={u.id}>{u.full_name || u.email} {u.email ? `
+														<option key={u.id} value={u.id}>
+															{u.full_name || u.email}{u.full_name && u.email ? ` — ${u.email}` : ""}
+														</option>
+													))}
+												</select>
+											</div>
+											<DialogFooter>
+												<Button type="button" variant="secondary" onClick={inviteMember} disabled={loading || !inviteEmail.trim()}>
+													Invite by Email
+												</Button>
+												<Button type="button" onClick={inviteExistingUser} disabled={loading || !selectedInviteUserId}>
+													Add Selected
+												</Button>
+											</DialogFooter>
+										</div>
+									</DialogContent>
+								</Dialog>
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-3">
+								{members.length === 0 ? (
+									<p className="text-sm text-muted-foreground">No members yet.</p>
+								) : (
+									members.map((m) => (
+										<div key={m.id} className="flex items-center justify-between rounded-md border p-3">
+											<div className="flex items-center gap-3">
+												<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm">
+													{m.user.full_name?.[0]?.toUpperCase() || "?"}
+												</div>
+												<div>
+													<div className="flex items-center gap-2">
+														<span className="font-medium">{m.user.full_name || m.user.email}</span>
+														<Badge variant="outline">{m.role}</Badge>
+													</div>
+													<p className="text-xs text-muted-foreground">Joined {new Date(m.joined_at).toLocaleDateString()}</p>
+												</div>
+											</div>
+											<Button variant="outline" size="sm" onClick={() => removeMember(m.id)} disabled={loading}>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										</div>
+									))
+								)}
+							</div>
+						</CardContent>
+					</Card>
+
+				</div>
+			</div>
+		);
+}
