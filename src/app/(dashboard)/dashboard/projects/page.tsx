@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye, User } from "lucide-react";
+import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye } from "lucide-react";
 import Link from "next/link";
 
 interface Project {
@@ -52,6 +52,19 @@ type Client = {
 	company: string | null;
 	phone: string | null;
 	notes: string | null;
+};
+
+type InsertProjectPayload = {
+	name: string;
+	description: string;
+	status: Project['status'];
+	owner_id: string;
+	client_id: string | null;
+	client_name: string | null;
+	client_email: string | null;
+	client_company: string | null;
+	client_phone: string | null;
+	client_notes: string | null;
 };
 
 export default function ProjectsPage() {
@@ -215,7 +228,7 @@ export default function ProjectsPage() {
 				clientIdToUse = newClient.id as string;
 			}
 
-			const payload: any = {
+			const payload: InsertProjectPayload = {
 				name: newProject.name,
 				description: newProject.description,
 				status: newProject.status,

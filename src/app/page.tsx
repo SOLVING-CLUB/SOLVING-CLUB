@@ -97,7 +97,13 @@ export default function Home() {
 						</FadeIn>
 
 						<FadeIn delay={80}>
-							
+							<Image
+								src="/window.svg"
+								alt="Solving Club workspace"
+								width={1200}
+								height={1000}
+								className="rounded-xl border border-white/10 shadow-2xl shadow-sky-500/10"
+							/>
 						</FadeIn>
 					</div>
 					<div className="mt-12">
