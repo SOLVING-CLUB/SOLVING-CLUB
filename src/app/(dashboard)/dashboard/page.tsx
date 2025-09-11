@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,6 @@ import {
 	BookOpen, 
 	FolderOpen, 
 	User,
-	TrendingUp,
 	Calendar,
 	Activity,
 	Bell,
@@ -54,8 +52,6 @@ const quickActions = [
 ];
 
 export default function DashboardHome() {
-	const [selectedTab, setSelectedTab] = useState("overview");
-
 	return (
 		<div className="min-h-screen bg-background">
 			{/* Mobile Header */}
@@ -81,7 +77,7 @@ export default function DashboardHome() {
 				<div className="hidden lg:flex items-center justify-between">
 					<div>
 						<h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-						<p className="text-muted-foreground">Welcome back! Here's what's happening with your projects.</p>
+						<p className="text-muted-foreground">Welcome back! Here&#39;s what&#39;s happening with your projects.</p>
 					</div>
 					<div className="flex gap-3">
 						<Button variant="outline">
@@ -95,27 +91,27 @@ export default function DashboardHome() {
 					</div>
 				</div>
 
-		{/* Stats Grid */}
-		<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-			{stats.map((stat, index) => (
-				<Card key={index} className="relative overflow-hidden">
-					<CardContent className="p-3 lg:p-6">
-						<div className="flex items-start justify-between mb-2">
-							<div className="min-w-0 flex-1">
-								<p className="text-xs lg:text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
-							</div>
-							<stat.icon className={`h-4 w-4 lg:h-5 lg:w-5 ${stat.color} shrink-0 ml-1`} />
-						</div>
-						<div className="space-y-1">
-							<p className="text-xl lg:text-2xl font-bold">{stat.value}</p>
-							<p className="text-xs text-muted-foreground">
-								<span className="text-green-600">{stat.change}</span> vs last month
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			))}
-		</div>
+				{/* Stats Grid */}
+				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+					{stats.map((stat, index) => (
+						<Card key={index} className="relative overflow-hidden">
+							<CardContent className="p-3 lg:p-6">
+								<div className="flex items-start justify-between mb-2">
+									<div className="min-w-0 flex-1">
+										<p className="text-xs lg:text-sm font-medium text-muted-foreground truncate">{stat.title}</p>
+									</div>
+									<stat.icon className={`h-4 w-4 lg:h-5 lg:w-5 ${stat.color} shrink-0 ml-1`} />
+								</div>
+								<div className="space-y-1">
+									<p className="text-xl lg:text-2xl font-bold">{stat.value}</p>
+									<p className="text-xs text-muted-foreground">
+										<span className="text-green-600">{stat.change}</span> vs last month
+									</p>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
 
 				{/* Main Content Grid */}
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
@@ -167,7 +163,7 @@ export default function DashboardHome() {
 												activity.status === 'success' ? 'bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400' :
 												activity.status === 'pending' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-500/20 dark:text-yellow-400' :
 												'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400'
-											}`}>
+											}`}> 
 												{activity.status === 'success' ? <CheckCircle className="h-3 w-3" /> :
 												 activity.status === 'pending' ? <AlertCircle className="h-3 w-3" /> :
 												 <Star className="h-3 w-3" />}
@@ -192,7 +188,7 @@ export default function DashboardHome() {
 									<Calendar className="h-5 w-5" />
 									Upcoming Events
 								</CardTitle>
-				</CardHeader>
+							</CardHeader>
 							<CardContent className="p-4 lg:p-6">
 								<div className="space-y-3">
 									{upcomingEvents.map((event) => (
@@ -209,14 +205,14 @@ export default function DashboardHome() {
 									))}
 								</div>
 							</CardContent>
-			</Card>
+						</Card>
 
 						{/* Progress Card */}
 						<Card>
 							<CardHeader>
 								<CardTitle className="flex items-center gap-2">
 									<Target className="h-5 w-5" />
-									This Week's Progress
+									This Week&#39;s Progress
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="p-4 lg:p-6">
@@ -266,8 +262,8 @@ export default function DashboardHome() {
 													<action.icon className="h-5 w-5" />
 													<span className="text-xs font-medium">{action.title}</span>
 												</Button>
-					</Link>
-				))}
+											</Link>
+										))}
 									</div>
 								</CardContent>
 							</Card>
