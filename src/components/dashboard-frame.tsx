@@ -7,9 +7,9 @@ import { FadeIn } from "@/components/transition";
 
 export default function DashboardFrame({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="relative min-h-screen grid lg:grid-rows-[auto_1fr] transition-colors" style={{ gridTemplateColumns: "64px 1fr" }}>
+		<div className="relative min-h-screen grid grid-cols-1 lg:[grid-template-columns:64px_1fr] lg:grid-rows-[auto_1fr] transition-colors">
 			{/* Top bar visible on all screens */}
-			<div className="flex items-center justify-between border-b p-3 col-span-2 transition-colors">
+			<div className="flex items-center justify-between border-b p-3 col-span-1 lg:col-span-2 transition-colors">
 				<div className="flex items-center gap-3">
 					<Button variant="ghost" size="icon" aria-label="Toggle sidebar" className="hidden lg:inline-flex pointer-events-none opacity-50">
 						<PanelLeft className="h-5 w-5" />
@@ -27,7 +27,7 @@ export default function DashboardFrame({ children }: { children: React.ReactNode
 			</div>
 
 			<FadeIn>
-				<main className="p-6 relative z-10">{children}</main>
+				<main className="p-4 sm:p-6 relative z-10">{children}</main>
 			</FadeIn>
 		</div>
 	);

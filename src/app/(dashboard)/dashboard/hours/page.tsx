@@ -18,7 +18,7 @@ import {
 	Clock
 } from "lucide-react";
 import { Calendar as UiCalendar } from "@/components/ui/calendar";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 interface CalendarAvailability {
 	id: string;
@@ -55,6 +55,14 @@ export default function HoursPage() {
 	const [newAvailabilityTitle, setNewAvailabilityTitle] = useState<string>("");
 	const [newAvailabilityType, setNewAvailabilityType] = useState<'available' | 'busy' | 'tentative'>('available');
 	const [newAvailabilityNotes, setNewAvailabilityNotes] = useState<string>("");
+
+	// All Availability by Date state
+	const [showAllByDate, setShowAllByDate] = useState(false);
+	const [allViewDate, setAllViewDate] = useState<Date>(() => new Date());
+
+	// All Availability by Member state
+	const [showAllByMember, setShowAllByMember] = useState(false);
+	const [memberFilterId, setMemberFilterId] = useState<string>("");
 
 	// Helper function to format date
 	function formatDate(dateString: string): string {
@@ -139,6 +147,12 @@ export default function HoursPage() {
 			setNewAvailabilityDate(new Date());
 		}
 	}, [isAddAvailabilityOpen, newAvailabilityDate]);
+
+	useEffect(() => {
+		if (!memberFilterId && teamMembers.length > 0) {
+			setMemberFilterId(teamMembers[0].id);
+		}
+	}, [teamMembers, memberFilterId]);
 
 	function getPlannedDurationHours(): string {
 		const [sh, sm = "0"] = newAvailabilityStart.split(":");
@@ -258,6 +272,19 @@ export default function HoursPage() {
 		}
 	}
 
+	function getTypeBadgeClass(type: 'available' | 'busy' | 'tentative' | string): string {
+		switch (type) {
+			case 'available':
+				return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30';
+			case 'busy':
+				return 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400 border-red-200 dark:border-red-500/30';
+			case 'tentative':
+				return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/30';
+			default:
+				return '';
+		}
+	}
+
 	function formatTime12(time: string): string {
 		// Accepts "HH:MM" or "HH:MM:SS"
 		const parts = time.split(":");
@@ -319,7 +346,7 @@ export default function HoursPage() {
 		const mixedMarkedDates = Object.entries(statusByDate).filter(([, v]) => v === 'mixed').map(([d]) => parseYmdToLocalDate(d));
 
 		const calendarBlock = (
-			<div className="[--cell-size:28px] sm:[--cell-size:32px] md:[--cell-size:36px] rounded-lg border p-3">
+			<div className="rounded-lg p-1 sm:p-2 md:p-3 overflow-x-hidden">
 				<UiCalendar
 					mode="single"
 					numberOfMonths={1}
@@ -334,7 +361,7 @@ export default function HoursPage() {
 						setSelectedDateByMember((prev) => ({ ...prev, [member.id]: candidate }));
 					}}
 					showOutsideDays={false}
-					className="w-full"
+					className="w-full p-2 sm:p-3 [--cell-size:clamp(28px,calc((100vw-2.5rem-48px)/7),40px)] sm:[--cell-size:28px] md:[--cell-size:36px]"
 					modifiers={{
 						availableMarked: availableMarkedDates,
 						busyMarked: busyMarkedDates,
@@ -342,124 +369,328 @@ export default function HoursPage() {
 						mixedMarked: mixedMarkedDates,
 					}}
 					modifiersClassNames={{
-						availableMarked: "ring-2 ring-offset-1 ring-offset-background ring-emerald-500 rounded-md",
-						busyMarked: "ring-2 ring-offset-1 ring-offset-background ring-red-500 rounded-md",
-						tentativeMarked: "ring-2 ring-offset-1 ring-offset-background ring-yellow-500 rounded-md",
-						mixedMarked: "ring-2 ring-offset-1 ring-offset-background ring-blue-500 rounded-md",
+						availableMarked: "ring-1 ring-offset-0 ring-emerald-500 rounded-sm",
+						busyMarked: "ring-1 ring-offset-0 ring-red-500 rounded-sm",
+						tentativeMarked: "ring-1 ring-offset-0 ring-yellow-500 rounded-sm",
+						mixedMarked: "ring-1 ring-offset-0 ring-blue-500 rounded-sm",
 					}}
 				/>
 			</div>
 		);
 
 		const detailsBlock = (
-			<div className="space-y-2">
-				<div className="text-sm text-muted-foreground">Selected date</div>
-				<div className="rounded-md border p-3">
-					<div className="text-sm font-medium">
-						{selectedDate.toLocaleDateString('en-US', {
-							weekday: 'long',
-							month: 'short',
-							day: 'numeric'
-						})}
+			<div className="space-y-3">
+				<div className="text-sm font-medium">
+					{selectedDate.toLocaleDateString('en-US', {
+						weekday: 'long',
+						month: 'short',
+						day: 'numeric'
+					})}
+				</div>
+				
+				{memberAvailability.length > 0 && (
+					<div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+						<span>{memberAvailability.length} {memberAvailability.length === 1 ? 'block' : 'blocks'}</span>
+						<span>
+							Total {
+								(
+									memberAvailability.reduce((sum, a) => {
+										const sh = parseInt(a.start_time.slice(0, 2));
+										const sm = parseInt(a.start_time.slice(3, 5));
+										const eh = parseInt(a.end_time.slice(0, 2));
+										const em = parseInt(a.end_time.slice(3, 5));
+										return sum + (eh + em / 60 - (sh + sm / 60));
+									}, 0)
+									).toFixed(1)
+							}
+							h
+						</span>
 					</div>
-					<div className="mt-2 space-y-2">
-						{memberAvailability.length === 0 ? (
-							<span className="text-sm text-muted-foreground">No availability logged</span>
-						) : (
-							memberAvailability.map((availability) => {
-								const startTime = availability.start_time.slice(0, 5);
-								const endTime = availability.end_time.slice(0, 5);
-								const duration = ((parseInt(availability.end_time.slice(0, 2)) + parseInt(availability.end_time.slice(3, 5)) / 60) -
-										(parseInt(availability.start_time.slice(0, 2)) + parseInt(availability.start_time.slice(3, 5)) / 60)).toFixed(1);
+				)}
 
-								return (
-									<div key={availability.id} className={`rounded border px-3 py-2 ${getAvailabilityStyle(availability.availability_type).container}`}>
-										<div className="flex items-center justify-between">
-											<div>
-												<div className={`text-sm font-medium ${getAvailabilityStyle(availability.availability_type).title}`}>
-													{availability.title || `${availability.availability_type.charAt(0).toUpperCase() + availability.availability_type.slice(1)}`}
-												</div>
-												<div className="text-xs">
-													{formatTime12(startTime)} – {formatTime12(endTime)} ({duration}h)
-												</div>
-												{availability.notes && (
-													<div className="text-xs mt-1 opacity-75">
-														{availability.notes}
-													</div>
-												)}
+				<div className="space-y-3">
+					{memberAvailability.length === 0 ? (
+						<div className="text-center py-8">
+							<Clock className="h-12 w-12 mx-auto mb-3 opacity-40" />
+							<span className="text-sm text-muted-foreground">No availability logged</span>
+						</div>
+					) : (
+						memberAvailability.map((availability) => {
+							const startTime = availability.start_time.slice(0, 5);
+							const endTime = availability.end_time.slice(0, 5);
+							const duration = ((parseInt(availability.end_time.slice(0, 2)) + parseInt(availability.end_time.slice(3, 5)) / 60) -
+									(parseInt(availability.start_time.slice(0, 2)) + parseInt(availability.start_time.slice(3, 5)) / 60)).toFixed(1);
+
+							return (
+								<div key={availability.id} className="rounded-lg bg-background border p-4 space-y-3 transition-colors hover:bg-accent/40">
+									<div className="flex items-start justify-between gap-3">
+										<div className="min-w-0 flex-1 space-y-2">
+											<div className="flex items-center gap-2">
+												<Badge className={`${getTypeBadgeClass(availability.availability_type)} shadow-sm` }>
+													{availability.availability_type.charAt(0).toUpperCase() + availability.availability_type.slice(1)}
+												</Badge>
 											</div>
-											{member.id === currentUserId && (
-												<Button
-													size="sm"
-													variant="ghost"
-													onClick={() => deleteAvailability(availability.id)}
-													className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-												>
-													<Trash2 className="h-3 w-3" />
-												</Button>
+											<div className={`font-medium ${getAvailabilityStyle(availability.availability_type).title}`}>
+												{availability.title || 'Untitled'}
+											</div>
+											<div className="flex items-center gap-2 text-sm text-muted-foreground">
+												<Clock className="h-4 w-4" />
+												<span>{formatTime12(startTime)} – {formatTime12(endTime)}</span>
+												<span className="text-xs opacity-60">({duration}h)</span>
+											</div>
+											{availability.notes && (
+												<div className="text-sm text-muted-foreground">
+													{availability.notes}
+												</div>
 											)}
 										</div>
+										{member.id === currentUserId && (
+											<Button
+												size="sm"
+												variant="ghost"
+												onClick={() => deleteAvailability(availability.id)}
+												className="h-9 w-9 p-0 text-red-500 hover:text-red-700 shrink-0"
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
 									</div>
-								);
-							})
-						)}
-					</div>
-
-					{member.id === currentUserId && (
-						<div className="pt-2">
-							<Button
-								size="sm"
-								variant="outline"
-								className="w-full"
-								onClick={() => {
-									setNewAvailabilityDate(selectedDate);
-									setIsAddAvailabilityOpen(true);
-								}}
-							>
-								<Plus className="h-4 w-4 mr-2" />
-								Add Availability
-							</Button>
-						</div>
+								</div>
+							);
+						})
 					)}
 				</div>
+
+				{member.id === currentUserId && (
+					<div className="pt-2">
+						<Button
+							size="default"
+							variant="outline"
+							className="w-full h-12"
+							onClick={() => {
+								setNewAvailabilityDate(selectedDate);
+								setIsAddAvailabilityOpen(true);
+							}}
+						>
+							<Plus className="h-5 w-5 mr-2" />
+							Add Availability
+						</Button>
+					</div>
+				)}
 			</div>
 		);
 
 		return (
-			<div key={member.id} className="rounded-lg border p-4">
-				<div className="flex items-center gap-3 mb-4">
-					<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-						<span className="text-sm font-medium">{member.full_name?.[0]?.toUpperCase() || "?"}</span>
-					</div>
-					<div>
-						<div className="font-medium">{member.full_name}</div>
-						<div className="text-xs text-muted-foreground">{formatDate(calendarMonth.toISOString())}</div>
+			<div key={member.id} className="rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md">
+				<div className="p-4 border-b bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+					<div className="flex items-center gap-3">
+						<div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+							<span className="text-sm font-medium">{member.full_name?.[0]?.toUpperCase() || "?"}</span>
+						</div>
+						<div className="min-w-0">
+							<div className="font-medium truncate">{member.full_name}</div>
+							<div className="text-xs text-muted-foreground">{formatDate(calendarMonth.toISOString())}</div>
+						</div>
 					</div>
 				</div>
 
-				{/* Mobile: Tabs to switch views */}
-				<div className="md:hidden">
-					<Tabs defaultValue="list" className="w-full">
-						<TabsList className="mb-3 w-full grid grid-cols-2">
-							<TabsTrigger value="list">List</TabsTrigger>
-							<TabsTrigger value="calendar">Calendar</TabsTrigger>
-						</TabsList>
-						<TabsContent value="list">{detailsBlock}</TabsContent>
-						<TabsContent value="calendar">{calendarBlock}</TabsContent>
-					</Tabs>
+				{/* Mobile: stacked calendar then details */}
+				<div className="p-4 md:hidden space-y-6">
+					{calendarBlock}
+					<div className="h-px bg-border" />
+					<div className="space-y-4">
+						{detailsBlock}
+					</div>
 				</div>
 
 				{/* Desktop: two-column layout */}
-				<div className="hidden md:grid grid-cols-2 gap-6">
+				<div className="hidden md:grid grid-cols-2 gap-8 p-6">
 					{calendarBlock}
-					{detailsBlock}
+					<div className="space-y-4">
+						{detailsBlock}
+					</div>
 				</div>
 			</div>
 		);
 	}
 
+	function renderAllAvailabilityByDate() {
+		const ymd = toYmdLocal(allViewDate);
+		const byMember: Record<string, CalendarAvailability[]> = {};
+		for (const a of availabilityData) {
+			if (a.date === ymd) {
+				(byMember[a.user_id] ||= []).push(a);
+			}
+		}
+		const memberById = new Map(teamMembers.map((m) => [m.id, m] as const));
+
+		const membersWithData = Object.keys(byMember)
+			.map((id) => ({ member: memberById.get(id), items: byMember[id] }))
+			.filter((x) => x.member) as { member: TeamMember; items: CalendarAvailability[] }[];
+
+		return (
+			<Card className="mb-4 sm:mb-6 rounded-lg sm:rounded-xl overflow-hidden">
+				<CardHeader className="pb-3 px-4 sm:px-6">
+					<div className="flex items-center justify-between">
+						<CardTitle className="text-lg flex items-center gap-2">
+							<Users className="h-5 w-5" />
+							All Availability (Date)
+						</CardTitle>
+						<div className="flex items-center gap-2">
+							<Button size="sm" variant={showAllByDate ? "default" : "outline"} onClick={() => setShowAllByDate((v) => !v)}>
+								{showAllByDate ? "Hide" : "Show"}
+							</Button>
+						</div>
+					</div>
+				</CardHeader>
+				{showAllByDate ? (
+					<CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+						<div className="grid md:grid-cols-2 gap-4 sm:gap-6">
+							<div className="rounded-lg p-1 sm:p-2 md:p-3">
+								<UiCalendar
+									mode="single"
+									numberOfMonths={1}
+									selected={allViewDate}
+									onSelect={(date) => date && setAllViewDate(date)}
+									month={calendarMonth}
+									onMonthChange={setCalendarMonth}
+									showOutsideDays={false}
+									className="w-full p-2 sm:p-3 [--cell-size:clamp(28px,calc((100vw-2.5rem-48px)/7),40px)] sm:[--cell-size:28px] md:[--cell-size:36px]"
+								/>
+							</div>
+							<div className="space-y-4">
+								<div>
+									<div className="text-sm text-muted-foreground">Selected date</div>
+									<div className="font-medium">
+										{allViewDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+									</div>
+								</div>
+								{membersWithData.length === 0 ? (
+									<div className="text-sm text-muted-foreground">No availability logged</div>
+								) : (
+									<div className="space-y-4">
+										{membersWithData.map(({ member, items }) => {
+											return (
+												<div key={member.id} className="rounded-lg border p-3">
+													<div className="flex items-center gap-2 mb-2">
+														<div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+															{member.full_name?.[0]?.toUpperCase() || "?"}
+														</div>
+														<div className="text-sm font-medium truncate">{member.full_name}</div>
+													</div>
+													<div className="space-y-2">
+														{items.map((a) => {
+															const startTime = a.start_time.slice(0, 5);
+															const endTime = a.end_time.slice(0, 5);
+															return (
+																<div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+																	<div className="text-sm">
+																		<span className="font-medium">{formatTime12(startTime)} – {formatTime12(endTime)}</span>
+																		{a.title ? <span className="text-muted-foreground"> — {a.title}</span> : null}
+																	</div>
+																	<Badge className={getTypeBadgeClass(a.availability_type)}>
+																		{a.availability_type.charAt(0).toUpperCase() + a.availability_type.slice(1)}
+																	</Badge>
+																</div>
+															);
+														})}
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								) /* end list */ }
+							</div>
+						</div>
+					</CardContent>
+				) : null}
+			</Card>
+		);
+	}
+
+	function renderAllAvailabilityByMember() {
+		const selectedMember = teamMembers.find((m) => m.id === memberFilterId);
+		const items = availabilityData
+			.filter((a) => a.user_id === memberFilterId)
+			.sort((a, b) => (a.date === b.date ? a.start_time.localeCompare(b.start_time) : a.date.localeCompare(b.date)));
+
+		const byDate: Record<string, CalendarAvailability[]> = {};
+		for (const a of items) (byDate[a.date] ||= []).push(a);
+		const dates = Object.keys(byDate).sort();
+
+		return (
+			<Card className="mb-4 sm:mb-6 rounded-lg sm:rounded-xl overflow-hidden">
+				<CardHeader className="pb-3 px-4 sm:px-6">
+					<div className="flex items-center justify-between">
+						<CardTitle className="text-lg">All Availability (Member)</CardTitle>
+						<div className="flex items-center gap-2">
+							<Button size="sm" variant={showAllByMember ? "default" : "outline"} onClick={() => setShowAllByMember((v) => !v)}>
+								{showAllByMember ? "Hide" : "Show"}
+							</Button>
+						</div>
+					</div>
+				</CardHeader>
+				{showAllByMember ? (
+					<CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+						<div className="grid sm:grid-cols-[260px_1fr] gap-3 sm:gap-4 items-start">
+							<div>
+								<div className="text-sm text-muted-foreground mb-1">Member</div>
+								<Select value={memberFilterId} onValueChange={setMemberFilterId}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{teamMembers.map((m) => (
+											<SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="text-sm text-muted-foreground">
+								{selectedMember ? `Showing availability for ${selectedMember.full_name}` : "Select a member"}
+							</div>
+						</div>
+
+						{!selectedMember ? (
+							<div className="text-sm text-muted-foreground">No member selected.</div>
+						) : items.length === 0 ? (
+							<div className="text-sm text-muted-foreground">No availability logged for this member.</div>
+						) : (
+							<div className="space-y-4">
+								{dates.map((d) => (
+									<div key={d} className="rounded-lg border p-3">
+										<div className="text-sm font-medium mb-2">
+											{new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+										</div>
+										<div className="space-y-2">
+											{byDate[d].map((a) => {
+												const startTime = a.start_time.slice(0, 5);
+												const endTime = a.end_time.slice(0, 5);
+												return (
+													<div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+														<div className="text-sm">
+															<span className="font-medium">{formatTime12(startTime)} – {formatTime12(endTime)}</span>
+															{a.title ? <span className="text-muted-foreground"> — {a.title}</span> : null}
+														</div>
+														<Badge className={getTypeBadgeClass(a.availability_type)}>
+															{a.availability_type.charAt(0).toUpperCase() + a.availability_type.slice(1)}
+														</Badge>
+													</div>
+												);
+											})}
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</CardContent>
+				) : null}
+			</Card>
+		);
+	}
+
 	return (
-		<div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+		<div className="w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4 sm:py-8">
 			{/* Header */}
 			{/*
 			<Card className="mb-6">
@@ -522,14 +753,21 @@ export default function HoursPage() {
 			*/}
 
 			{/* Team Calendar View */}
-			<Card>
-				<CardHeader className="pb-4">
-					<CardTitle className="text-lg flex items-center gap-2">
-						<Users className="h-5 w-5" />
-						Team Availability
-					</CardTitle>
+			<Card className="rounded-lg sm:rounded-xl overflow-hidden">
+				<CardHeader className="pb-3 px-4 sm:px-6">
+					<div className="flex items-center justify-between">
+						<CardTitle className="text-lg flex items-center gap-2">
+							<Users className="h-5 w-5" />
+							Team Availability
+						</CardTitle>
+						<div className="flex items-center gap-2">
+							<Button size="sm" variant="outline" onClick={() => setCalendarMonth(new Date())}>Today</Button>
+						</div>
+					</div>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+					{renderAllAvailabilityByDate()}
+					{renderAllAvailabilityByMember()}
 					{/* {availabilityData.length === 0 && (
 						<div className="text-center py-6 text-muted-foreground">
 							<Clock className="h-10 w-10 mx-auto mb-2 opacity-50" />
@@ -540,12 +778,25 @@ export default function HoursPage() {
 							</Button>
 						</div>
 					)} */}
-					<div className="space-y-6">
+					<div className="space-y-4 sm:space-y-6">
 						{teamMembers.map(renderMemberCard)}
 					</div>
 				</CardContent>
 			</Card>
 
+			{/* Floating Add button on mobile */}
+			{currentUserId && (
+				<Button
+					className="sm:hidden fixed bottom-20 right-5 h-12 w-12 rounded-full shadow-lg z-40"
+					onClick={() => {
+						setNewAvailabilityDate(new Date());
+						setIsAddAvailabilityOpen(true);
+					}}
+				>
+					<Plus className="h-5 w-5" />
+				</Button>
+			)}
+ 
 			{/* Add Availability Dialog */}
 			<Dialog open={isAddAvailabilityOpen} onOpenChange={setIsAddAvailabilityOpen}>
 				<DialogContent className="sm:max-w-2xl p-0 overflow-hidden">
@@ -556,7 +807,7 @@ export default function HoursPage() {
 								<DialogTitle className="text-base">Select a date</DialogTitle>
 								<DialogDescription>Choose the day for this time block.</DialogDescription>
 							</DialogHeader>
-							<div className="mt-4 rounded-md border bg-background p-3 [--cell-size:28px] sm:[--cell-size:32px] md:[--cell-size:36px]">
+							<div className="mt-4 rounded-md border bg-background p-2 sm:p-3 [--cell-size:24px] sm:[--cell-size:32px] md:[--cell-size:36px]">
 								<UiCalendar mode="single" selected={newAvailabilityDate ?? new Date()} onSelect={setNewAvailabilityDate} month={calendarMonth} onMonthChange={setCalendarMonth} showOutsideDays={false} className="w-full" />
 							</div>
 							{newAvailabilityDate && (
@@ -621,6 +872,8 @@ export default function HoursPage() {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{renderAllAvailabilityByDate()}
 		</div>
 	);
 }
