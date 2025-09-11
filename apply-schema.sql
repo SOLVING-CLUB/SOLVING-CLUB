@@ -4,22 +4,19 @@
 -- Add email column to profiles if it doesn't exist
 alter table public.profiles add column if not exists email text;
 
--- Weekly Hours table
-create table if not exists public.weekly_hours (
+-- Calendar Availability table (replaces weekly_hours)
+create table if not exists public.calendar_availability (
 	id uuid primary key default gen_random_uuid(),
 	user_id uuid references auth.users(id) on delete cascade not null,
-	week_start date not null, -- Monday of the week
-	monday_hours integer not null default 0,
-	tuesday_hours integer not null default 0,
-	wednesday_hours integer not null default 0,
-	thursday_hours integer not null default 0,
-	friday_hours integer not null default 0,
-	saturday_hours integer not null default 0,
-	sunday_hours integer not null default 0,
+	date date not null,
+	start_time time not null,
+	end_time time not null,
+	title text,
 	notes text,
+	availability_type text not null default 'available' check (availability_type in ('available', 'busy', 'tentative')),
 	created_at timestamptz default now(),
 	updated_at timestamptz default now(),
-	unique (user_id, week_start)
+	check (end_time > start_time)
 );
 
 -- Learning Resources table
@@ -108,10 +105,6 @@ create table if not exists public.project_files (
 );
 
 -- Triggers for new tables
-create or replace trigger weekly_hours_set_updated_at
-before update on public.weekly_hours
-for each row execute function public.set_updated_at();
-
 create or replace trigger learning_resources_set_updated_at
 before update on public.learning_resources
 for each row execute function public.set_updated_at();
@@ -125,7 +118,6 @@ before update on public.project_tasks
 for each row execute function public.set_updated_at();
 
 -- Enable RLS for new tables
-alter table public.weekly_hours enable row level security;
 alter table public.learning_resources enable row level security;
 alter table public.projects enable row level security;
 alter table public.project_members enable row level security;
@@ -165,22 +157,6 @@ create policy "Users can manage their clients" on public.clients
 -- Link projects to clients
 alter table public.projects add column if not exists client_id uuid references public.clients(id) on delete set null;
 
--- Weekly Hours policies
-drop policy if exists "Users can view all weekly hours" on public.weekly_hours;
-create policy "Users can view all weekly hours" on public.weekly_hours
-	for select using (auth.role() = 'authenticated');
-
-drop policy if exists "Users can create their own weekly hours" on public.weekly_hours;
-create policy "Users can create their own weekly hours" on public.weekly_hours
-	for insert with check (auth.uid() = user_id);
-
-drop policy if exists "Users can update their own weekly hours" on public.weekly_hours;
-create policy "Users can update their own weekly hours" on public.weekly_hours
-	for update using (auth.uid() = user_id);
-
-drop policy if exists "Users can delete their own weekly hours" on public.weekly_hours;
-create policy "Users can delete their own weekly hours" on public.weekly_hours
-	for delete using (auth.uid() = user_id);
 
 -- Learning Resources policies
 drop policy if exists "Users can view their own learning resources" on public.learning_resources;
@@ -369,30 +345,22 @@ create policy "Project members can delete files" on storage.objects
 		)
 	);
 
--- Availability blocks (exact time ranges per date)
-create table if not exists public.availability_blocks (
-	id uuid primary key default gen_random_uuid(),
-	user_id uuid references auth.users(id) on delete cascade not null,
-	date date not null,
-	start_time time not null,
-	end_time time not null,
-	created_at timestamptz default now(),
-	updated_at timestamptz default now(),
-	check (end_time > start_time)
-);
+-- Add indexes and triggers for calendar_availability
+create index if not exists calendar_availability_user_date_idx on public.calendar_availability(user_id, date);
+create index if not exists calendar_availability_date_idx on public.calendar_availability(date);
 
-create index if not exists availability_blocks_user_date_idx on public.availability_blocks(user_id, date);
-
-create or replace trigger availability_blocks_set_updated_at
-before update on public.availability_blocks
+create or replace trigger calendar_availability_set_updated_at
+before update on public.calendar_availability
 for each row execute function public.set_updated_at();
 
-alter table public.availability_blocks enable row level security;
+-- Enable RLS for calendar_availability
+alter table public.calendar_availability enable row level security;
 
-drop policy if exists "Users can view availability blocks" on public.availability_blocks;
-create policy "Users can view availability blocks" on public.availability_blocks
+-- Calendar Availability policies
+drop policy if exists "Users can view calendar availability" on public.calendar_availability;
+create policy "Users can view calendar availability" on public.calendar_availability
 	for select using (auth.role() = 'authenticated');
 
-drop policy if exists "Users can manage their availability blocks" on public.availability_blocks;
-create policy "Users can manage their availability blocks" on public.availability_blocks
+drop policy if exists "Users can manage their calendar availability" on public.calendar_availability;
+create policy "Users can manage their calendar availability" on public.calendar_availability
 	for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
