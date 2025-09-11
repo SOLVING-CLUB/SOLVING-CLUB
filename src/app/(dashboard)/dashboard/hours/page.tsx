@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
 	Plus, 
@@ -18,6 +18,7 @@ import {
 	Clock
 } from "lucide-react";
 import { Calendar as UiCalendar } from "@/components/ui/calendar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface CalendarAvailability {
 	id: string;
@@ -300,11 +301,6 @@ export default function HoursPage() {
 	function renderMemberCard(member: TeamMember) {
 		const selectedDate = selectedDateByMember[member.id] ?? new Date();
 		const memberAvailability = getAvailabilityForMemberDate(member.id, selectedDate);
-		
-		// Get all dates with availability for this member
-		const availabilityDates = availabilityData
-			.filter(a => a.user_id === member.id)
-			.map(a => parseYmdToLocalDate(a.date));
 
 		// Build per-day status to color dates in the mini calendar
 		const statusByDate: Record<string, 'available' | 'busy' | 'tentative' | 'mixed'> = {};
@@ -317,10 +313,117 @@ export default function HoursPage() {
 				statusByDate[key] = 'mixed';
 			}
 		});
-		const availableMarkedDates = Object.entries(statusByDate).filter(([,v]) => v === 'available').map(([d]) => parseYmdToLocalDate(d));
-		const busyMarkedDates = Object.entries(statusByDate).filter(([,v]) => v === 'busy').map(([d]) => parseYmdToLocalDate(d));
-		const tentativeMarkedDates = Object.entries(statusByDate).filter(([,v]) => v === 'tentative').map(([d]) => parseYmdToLocalDate(d));
-		const mixedMarkedDates = Object.entries(statusByDate).filter(([,v]) => v === 'mixed').map(([d]) => parseYmdToLocalDate(d));
+		const availableMarkedDates = Object.entries(statusByDate).filter(([, v]) => v === 'available').map(([d]) => parseYmdToLocalDate(d));
+		const busyMarkedDates = Object.entries(statusByDate).filter(([, v]) => v === 'busy').map(([d]) => parseYmdToLocalDate(d));
+		const tentativeMarkedDates = Object.entries(statusByDate).filter(([, v]) => v === 'tentative').map(([d]) => parseYmdToLocalDate(d));
+		const mixedMarkedDates = Object.entries(statusByDate).filter(([, v]) => v === 'mixed').map(([d]) => parseYmdToLocalDate(d));
+
+		const calendarBlock = (
+			<div className="[--cell-size:28px] sm:[--cell-size:32px] md:[--cell-size:36px] rounded-lg border p-3">
+				<UiCalendar
+					mode="single"
+					numberOfMonths={1}
+					selected={selectedDate}
+					onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
+					month={calendarMonth}
+					onMonthChange={(d) => {
+						setCalendarMonth(d);
+						// keep the same day-of-month when month changes
+						const currentDay = selectedDate.getDate();
+						const candidate = new Date(d.getFullYear(), d.getMonth(), Math.min(currentDay, 28));
+						setSelectedDateByMember((prev) => ({ ...prev, [member.id]: candidate }));
+					}}
+					showOutsideDays={false}
+					className="w-full"
+					modifiers={{
+						availableMarked: availableMarkedDates,
+						busyMarked: busyMarkedDates,
+						tentativeMarked: tentativeMarkedDates,
+						mixedMarked: mixedMarkedDates,
+					}}
+					modifiersClassNames={{
+						availableMarked: "ring-2 ring-offset-1 ring-offset-background ring-emerald-500 rounded-md",
+						busyMarked: "ring-2 ring-offset-1 ring-offset-background ring-red-500 rounded-md",
+						tentativeMarked: "ring-2 ring-offset-1 ring-offset-background ring-yellow-500 rounded-md",
+						mixedMarked: "ring-2 ring-offset-1 ring-offset-background ring-blue-500 rounded-md",
+					}}
+				/>
+			</div>
+		);
+
+		const detailsBlock = (
+			<div className="space-y-2">
+				<div className="text-sm text-muted-foreground">Selected date</div>
+				<div className="rounded-md border p-3">
+					<div className="text-sm font-medium">
+						{selectedDate.toLocaleDateString('en-US', {
+							weekday: 'long',
+							month: 'short',
+							day: 'numeric'
+						})}
+					</div>
+					<div className="mt-2 space-y-2">
+						{memberAvailability.length === 0 ? (
+							<span className="text-sm text-muted-foreground">No availability logged</span>
+						) : (
+							memberAvailability.map((availability) => {
+								const startTime = availability.start_time.slice(0, 5);
+								const endTime = availability.end_time.slice(0, 5);
+								const duration = ((parseInt(availability.end_time.slice(0, 2)) + parseInt(availability.end_time.slice(3, 5)) / 60) -
+										(parseInt(availability.start_time.slice(0, 2)) + parseInt(availability.start_time.slice(3, 5)) / 60)).toFixed(1);
+
+								return (
+									<div key={availability.id} className={`rounded border px-3 py-2 ${getAvailabilityStyle(availability.availability_type).container}`}>
+										<div className="flex items-center justify-between">
+											<div>
+												<div className={`text-sm font-medium ${getAvailabilityStyle(availability.availability_type).title}`}>
+													{availability.title || `${availability.availability_type.charAt(0).toUpperCase() + availability.availability_type.slice(1)}`}
+												</div>
+												<div className="text-xs">
+													{formatTime12(startTime)} – {formatTime12(endTime)} ({duration}h)
+												</div>
+												{availability.notes && (
+													<div className="text-xs mt-1 opacity-75">
+														{availability.notes}
+													</div>
+												)}
+											</div>
+											{member.id === currentUserId && (
+												<Button
+													size="sm"
+													variant="ghost"
+													onClick={() => deleteAvailability(availability.id)}
+													className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+												>
+													<Trash2 className="h-3 w-3" />
+												</Button>
+											)}
+										</div>
+									</div>
+								);
+							})
+						)}
+					</div>
+
+					{member.id === currentUserId && (
+						<div className="pt-2">
+							<Button
+								size="sm"
+								variant="outline"
+								className="w-full"
+								onClick={() => {
+									setNewAvailabilityDate(selectedDate);
+									setIsAddAvailabilityOpen(true);
+								}}
+							>
+								<Plus className="h-4 w-4 mr-2" />
+								Add Availability
+							</Button>
+						</div>
+					)}
+				</div>
+			</div>
+		);
 
 		return (
 			<div key={member.id} className="rounded-lg border p-4">
@@ -333,110 +436,23 @@ export default function HoursPage() {
 						<div className="text-xs text-muted-foreground">{formatDate(calendarMonth.toISOString())}</div>
 					</div>
 				</div>
-				
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="[--cell-size:36px] rounded-lg border p-3">
-						<UiCalendar
-							mode="single"
-							numberOfMonths={1}
-							selected={selectedDate}
-							onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
-							month={calendarMonth}
-							onMonthChange={(d) => {
-								setCalendarMonth(d);
-								// keep the same day-of-month when month changes
-								const currentDay = selectedDate.getDate();
-								const candidate = new Date(d.getFullYear(), d.getMonth(), Math.min(currentDay, 28));
-								setSelectedDateByMember((prev) => ({ ...prev, [member.id]: candidate }));
-							}}
-							showOutsideDays={false}
-							className="w-full"
-							modifiers={{
-								availableMarked: availableMarkedDates,
-								busyMarked: busyMarkedDates,
-								tentativeMarked: tentativeMarkedDates,
-								mixedMarked: mixedMarkedDates,
-							}}
-							modifiersClassNames={{
-								availableMarked: "ring-2 ring-offset-1 ring-offset-background ring-emerald-500 rounded-md",
-								busyMarked: "ring-2 ring-offset-1 ring-offset-background ring-red-500 rounded-md",
-								tentativeMarked: "ring-2 ring-offset-1 ring-offset-background ring-yellow-500 rounded-md",
-								mixedMarked: "ring-2 ring-offset-1 ring-offset-background ring-blue-500 rounded-md",
-							}}
-						/>
-					</div>
-					
-					<div className="space-y-2">
-						<div className="text-sm text-muted-foreground">Selected date</div>
-						<div className="rounded-md border p-3">
-							<div className="text-sm font-medium">
-								{selectedDate.toLocaleDateString('en-US', { 
-									weekday: 'long', 
-									month: 'short', 
-									day: 'numeric' 
-								})}
-							</div>
-							<div className="mt-2 space-y-2">
-								{memberAvailability.length === 0 ? (
-									<span className="text-sm text-muted-foreground">No availability logged</span>
-								) : (
-									memberAvailability.map((availability) => {
-										const startTime = availability.start_time.slice(0, 5);
-										const endTime = availability.end_time.slice(0, 5);
-										const duration = ((parseInt(availability.end_time.slice(0, 2)) + parseInt(availability.end_time.slice(3, 5)) / 60) - 
-														(parseInt(availability.start_time.slice(0, 2)) + parseInt(availability.start_time.slice(3, 5)) / 60)).toFixed(1);
-										
-											return (
-											<div key={availability.id} className={`rounded border px-3 py-2 ${getAvailabilityStyle(availability.availability_type).container}`}>
-												<div className="flex items-center justify-between">
-													<div>
-														<div className={`text-sm font-medium ${getAvailabilityStyle(availability.availability_type).title}`}>
-															{availability.title || `${availability.availability_type.charAt(0).toUpperCase() + availability.availability_type.slice(1)}`}
-														</div>
-														<div className="text-xs">
-															{formatTime12(startTime)} – {formatTime12(endTime)} ({duration}h)
-														</div>
-														{availability.notes && (
-															<div className="text-xs mt-1 opacity-75">
-																{availability.notes}
-															</div>
-														)}
-													</div>
-													{member.id === currentUserId && (
-														<Button
-															size="sm"
-															variant="ghost"
-															onClick={() => deleteAvailability(availability.id)}
-															className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-														>
-															<Trash2 className="h-3 w-3" />
-														</Button>
-													)}
-												</div>
-											</div>
-											);
-									})
-								)}
-							</div>
-							</div>
 
-						{member.id === currentUserId && (
-							<div className="pt-2">
-								<Button 
-									size="sm" 
-									variant="outline" 
-									className="w-full"
-									onClick={() => {
-										setNewAvailabilityDate(selectedDate);
-										setIsAddAvailabilityOpen(true);
-									}}
-								>
-									<Plus className="h-4 w-4 mr-2" />
-									Add Availability
-								</Button>
-							</div>
-						)}
-					</div>
+				{/* Mobile: Tabs to switch views */}
+				<div className="md:hidden">
+					<Tabs defaultValue="list" className="w-full">
+						<TabsList className="mb-3 w-full grid grid-cols-2">
+							<TabsTrigger value="list">List</TabsTrigger>
+							<TabsTrigger value="calendar">Calendar</TabsTrigger>
+						</TabsList>
+						<TabsContent value="list">{detailsBlock}</TabsContent>
+						<TabsContent value="calendar">{calendarBlock}</TabsContent>
+					</Tabs>
+				</div>
+
+				{/* Desktop: two-column layout */}
+				<div className="hidden md:grid grid-cols-2 gap-6">
+					{calendarBlock}
+					{detailsBlock}
 				</div>
 			</div>
 		);
@@ -540,7 +556,7 @@ export default function HoursPage() {
 								<DialogTitle className="text-base">Select a date</DialogTitle>
 								<DialogDescription>Choose the day for this time block.</DialogDescription>
 							</DialogHeader>
-							<div className="mt-4 rounded-md border bg-background p-3">
+							<div className="mt-4 rounded-md border bg-background p-3 [--cell-size:28px] sm:[--cell-size:32px] md:[--cell-size:36px]">
 								<UiCalendar mode="single" selected={newAvailabilityDate ?? new Date()} onSelect={setNewAvailabilityDate} month={calendarMonth} onMonthChange={setCalendarMonth} showOutsideDays={false} className="w-full" />
 							</div>
 							{newAvailabilityDate && (
