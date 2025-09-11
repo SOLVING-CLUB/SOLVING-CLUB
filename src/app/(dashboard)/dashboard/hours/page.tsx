@@ -412,6 +412,130 @@ export default function HoursPage() {
 		setSelectedDateByMember(defaults);
 	}, [teamMembers, weeklyHours, currentWeek]);
 
+	function renderMemberCard(member: TeamMember) {
+		const hours = weeklyHours.find((h) => h.user_id === member.id);
+		const availableFull = weekDates
+			.map((d, idx) => ({ date: new Date(d), dayKey: days[idx] }))
+			.filter(({ dayKey }) => getMemberDayHours(member.id, dayKey) >= 8)
+			.map(({ date }) => date);
+		const availablePartial = weekDates
+			.map((d, idx) => ({ date: new Date(d), dayKey: days[idx] }))
+			.filter(({ dayKey }) => {
+				const h = getMemberDayHours(member.id, dayKey);
+				return h > 0 && h < 8;
+			})
+			.map(({ date }) => date);
+		const selectedDate = selectedDateByMember[member.id] ?? new Date(currentWeek);
+		const selectedIdx = weekDates.findIndex((d) => new Date(d).toDateString() === selectedDate.toDateString());
+		const selectedDayKey = selectedIdx !== -1 ? days[selectedIdx] : null;
+		const selectedHours = selectedDayKey ? getMemberDayHours(member.id, selectedDayKey) : 0;
+
+		return (
+			<div key={member.id} className="rounded-lg border p-4">
+				<div className="flex items-center gap-3 mb-4">
+					<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+						<span className="text-sm font-medium">{member.full_name?.[0]?.toUpperCase() || "?"}</span>
+					</div>
+					<div>
+						<div className="font-medium">{member.full_name}</div>
+						<div className="text-xs text-muted-foreground">Week of {formatDate(currentWeek)}</div>
+					</div>
+				</div>
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div className="[--cell-size:40px] rounded-lg border p-3">
+						<UiCalendar
+							mode="single"
+							numberOfMonths={1}
+							selected={selectedDate}
+							onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
+							month={calendarMonth}
+							onMonthChange={(d) => setCalendarMonth(d)}
+							showOutsideDays={false}
+							className="w-full"
+							modifiers={{ availableFull, availablePartial }}
+							modifiersClassNames={{
+								availableFull: "ring-1 ring-emerald-500 rounded-md",
+								availablePartial: "ring-1 ring-yellow-500 rounded-md",
+							}}
+						/>
+					</div>
+					<div className="space-y-2">
+						<div className="text-sm text-muted-foreground">Selected date</div>
+						<div className="rounded-md border p-3">
+							<div className="text-sm font-medium">{selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+							<div className="mt-1 text-sm space-y-1">
+								{selectedIdx === -1 ? (
+									<span className="text-muted-foreground">Outside current week</span>
+								) : getBlocksForMemberDate(member.id, selectedDate).length === 0 ? (
+									<span className="text-muted-foreground">No availability logged</span>
+								) : (
+									<div className="space-y-1">
+										{getBlocksForMemberDate(member.id, selectedDate).map((b) => {
+											const st = b.start_time.slice(0,5);
+											const et = b.end_time.slice(0,5);
+											const dur = ((parseInt(b.end_time.slice(0,2)) + parseInt(b.end_time.slice(3,5))/60) - (parseInt(b.start_time.slice(0,2)) + parseInt(b.start_time.slice(3,5))/60)).toFixed(1);
+											return (
+												<div key={b.id} className="flex items-center justify-between rounded border bg-muted/40 px-2 py-1">
+													<span className="text-xs">{st} – {et}</span>
+													<span className="text-xs text-muted-foreground">{dur}h</span>
+												</div>
+											);
+										})}
+										<div className="text-xs text-muted-foreground">Total: {selectedHours}h</div>
+									</div>
+								)}
+							</div>
+
+						{member.id === currentUserId && (
+							<div className="pt-2">
+								<Dialog open={isAddBlockOpen} onOpenChange={setIsAddBlockOpen}>
+									<DialogTrigger asChild>
+										<Button size="sm" variant="outline">Add availability</Button>
+									</DialogTrigger>
+									<DialogContent className="sm:max-w-md">
+										<DialogHeader>
+											<DialogTitle>Add availability block</DialogTitle>
+											<DialogDescription>Select a date and time range you are available to work.</DialogDescription>
+										</DialogHeader>
+										<div className="space-y-4">
+											<UiCalendar mode="single" selected={newBlockDate ?? selectedDate} onSelect={setNewBlockDate} month={calendarMonth} onMonthChange={setCalendarMonth} showOutsideDays={false} />
+											<div className="grid grid-cols-2 gap-3">
+												<div>
+													<Label htmlFor="start-time">Start</Label>
+													<Input id="start-time" type="time" value={newBlockStart} onChange={(e) => setNewBlockStart(e.target.value)} />
+												</div>
+												<div>
+													<Label htmlFor="end-time">End</Label>
+													<Input id="end-time" type="time" value={newBlockEnd} onChange={(e) => setNewBlockEnd(e.target.value)} />
+												</div>
+											</div>
+										</div>
+										<DialogFooter>
+											<Button variant="outline" onClick={() => setIsAddBlockOpen(false)}>Cancel</Button>
+											<Button onClick={async () => {
+												try {
+													if (!newBlockDate) return;
+													const iso = newBlockDate.toISOString().split('T')[0];
+													if (newBlockEnd <= newBlockStart) { toast.error("End must be after start"); return; }
+													const { error } = await supabase.from("availability_blocks").insert({ user_id: currentUserId, date: iso, start_time: newBlockStart + ":00", end_time: newBlockEnd + ":00" });
+													if (error) { toast.error("Failed to add block"); return; }
+													toast.success("Availability added");
+													setIsAddBlockOpen(false);
+													await loadBlocksForMonth(calendarMonth);
+												} catch (e) { toast.error("Unexpected error"); }
+											}}>Save</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
+							</div>
+						)}
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 			{/* Header */}
@@ -541,127 +665,7 @@ export default function HoursPage() {
 						</div>
 					) : (
 						<div className="space-y-6">
-							{teamMembers.map((member) => {
-								const hours = weeklyHours.find((h) => h.user_id === member.id);
-								const availableFull = weekDates
-									.map((d, idx) => ({ date: new Date(d), dayKey: days[idx] }))
-									.filter(({ dayKey }) => getMemberDayHours(member.id, dayKey) >= 8)
-									.map(({ date }) => date);
-								const availablePartial = weekDates
-									.map((d, idx) => ({ date: new Date(d), dayKey: days[idx] }))
-									.filter(({ dayKey }) => {
-										const h = getMemberDayHours(member.id, dayKey);
-										return h > 0 && h < 8;
-									})
-									.map(({ date }) => date);
-								const selectedDate = selectedDateByMember[member.id] ?? new Date(currentWeek);
-								const selectedIdx = weekDates.findIndex((d) => new Date(d).toDateString() === selectedDate.toDateString());
-								const selectedDayKey = selectedIdx !== -1 ? days[selectedIdx] : null;
-								const selectedHours = selectedDayKey ? getMemberDayHours(member.id, selectedDayKey) : 0;
-								return (
-									<div key={member.id} className="rounded-lg border p-4">
-										<div className="flex items-center gap-3 mb-4">
-											<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-												<span className="text-sm font-medium">{member.full_name?.[0]?.toUpperCase() || "?"}</span>
-											</div>
-											<div>
-												<div className="font-medium">{member.full_name}</div>
-												<div className="text-xs text-muted-foreground">Week of {formatDate(currentWeek)}</div>
-											</div>
-										</div>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-											<div className="[--cell-size:40px] rounded-lg border p-3">
-												<UiCalendar
-													mode="single"
-													numberOfMonths={1}
-													selected={selectedDate}
-													onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
-													month={calendarMonth}
-													onMonthChange={(d) => setCalendarMonth(d)}
-													showOutsideDays={false}
-													className="w-full"
-													modifiers={{ availableFull, availablePartial }}
-													modifiersClassNames={{
-														availableFull: "after:content-[''] after:block after:mx-auto after:mt-1 after:h-1.5 after:w-1.5 after:rounded-full after:bg-emerald-500",
-														availablePartial: "after:content-[''] after:block after:mx-auto after:mt-1 after:h-1.5 after:w-1.5 after:rounded-full after:bg-yellow-500",
-													}}
-												/>
-											</div>
-											<div className="space-y-2">
-												<div className="text-sm text-muted-foreground">Selected date</div>
-												<div className="rounded-md border p-3">
-													<div className="text-sm font-medium">{selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-													<div className="mt-1 text-sm space-y-1">
-														{selectedIdx === -1 ? (
-															<span className="text-muted-foreground">Outside current week</span>
-														) : getBlocksForMemberDate(member.id, selectedDate).length === 0 ? (
-															<span className="text-muted-foreground">No availability logged</span>
-														) : (
-															<div className="space-y-1">
-																{getBlocksForMemberDate(member.id, selectedDate).map((b) => {
-																	const st = b.start_time.slice(0,5);
-																	const et = b.end_time.slice(0,5);
-																	const dur = ((parseInt(b.end_time.slice(0,2)) + parseInt(b.end_time.slice(3,5))/60) - (parseInt(b.start_time.slice(0,2)) + parseInt(b.start_time.slice(3,5))/60)).toFixed(1);
-																	return (
-																		<div key={b.id} className="flex items-center justify-between rounded border bg-muted/40 px-2 py-1">
-																			<span className="text-xs">{st} – {et}</span>
-																			<span className="text-xs text-muted-foreground">{dur}h</span>
-																		</div>
-																	);
-																})}
-																<div className="text-xs text-muted-foreground">Total: {selectedHours}h</div>
-															</div>
-														)}
-													</div>
-
-												{member.id === currentUserId && (
-													<div className="pt-2">
-														<Dialog open={isAddBlockOpen} onOpenChange={setIsAddBlockOpen}>
-															<DialogTrigger asChild>
-																<Button size="sm" variant="outline">Add availability</Button>
-															</DialogTrigger>
-															<DialogContent className="sm:max-w-md">
-																<DialogHeader>
-																	<DialogTitle>Add availability block</DialogTitle>
-																	<DialogDescription>Select a date and time range you are available to work.</DialogDescription>
-																</DialogHeader>
-																<div className="space-y-4">
-																	<UiCalendar mode="single" selected={newBlockDate ?? selectedDate} onSelect={setNewBlockDate} month={calendarMonth} onMonthChange={setCalendarMonth} showOutsideDays={false} />
-																	<div className="grid grid-cols-2 gap-3">
-																		<div>
-																			<Label htmlFor="start-time">Start</Label>
-																			<Input id="start-time" type="time" value={newBlockStart} onChange={(e) => setNewBlockStart(e.target.value)} />
-																		</div>
-																		<div>
-																			<Label htmlFor="end-time">End</Label>
-																			<Input id="end-time" type="time" value={newBlockEnd} onChange={(e) => setNewBlockEnd(e.target.value)} />
-																		</div>
-																	</div>
-																</div>
-																<DialogFooter>
-																	<Button variant="outline" onClick={() => setIsAddBlockOpen(false)}>Cancel</Button>
-																	<Button onClick={async () => {
-																		try {
-																			if (!newBlockDate) return;
-																			const iso = newBlockDate.toISOString().split('T')[0];
-																			if (newBlockEnd <= newBlockStart) { toast.error("End must be after start"); return; }
-																			const { error } = await supabase.from("availability_blocks").insert({ user_id: currentUserId, date: iso, start_time: newBlockStart + ":00", end_time: newBlockEnd + ":00" });
-																			if (error) { toast.error("Failed to add block"); return; }
-																			toast.success("Availability added");
-																			setIsAddBlockOpen(false);
-																			await loadBlocksForMonth(calendarMonth);
-																		} catch (e) { toast.error("Unexpected error"); }
-																	}}>Save</Button>
-																</DialogFooter>
-															</DialogContent>
-														</Dialog>
-													</div>
-												)}
-											</div>
-										</div>
-									</div>
-								);
-							})}
+							{teamMembers.map(renderMemberCard)}
 						</div>
 					)}
 				</CardContent>
