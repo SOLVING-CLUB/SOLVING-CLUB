@@ -1,31 +1,18 @@
 "use client";
-import { useState } from "react";
 import Sidebar from "@/components/sidebar";
 import MobileSidebar from "@/components/mobile-sidebar";
 import { Button } from "@/components/ui/button";
-import { PanelLeft, PanelLeftClose } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { FadeIn } from "@/components/transition";
 
 export default function DashboardFrame({ children }: { children: React.ReactNode }) {
-	const [open, setOpen] = useState(true);
-
 	return (
-		<div
-			className="min-h-screen grid lg:grid-rows-[auto_1fr] transition-colors"
-			style={{ gridTemplateColumns: open ? "240px 1fr" : "0px 1fr" }}
-		>
+		<div className="relative min-h-screen grid lg:grid-rows-[auto_1fr] transition-colors" style={{ gridTemplateColumns: "64px 1fr" }}>
 			{/* Top bar visible on all screens */}
 			<div className="flex items-center justify-between border-b p-3 col-span-2 transition-colors">
 				<div className="flex items-center gap-3">
-					{/* Desktop toggle */}
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
-						onClick={() => setOpen((v) => !v)}
-						className="hidden lg:inline-flex"
-					>
-						{open ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
+					<Button variant="ghost" size="icon" aria-label="Toggle sidebar" className="hidden lg:inline-flex pointer-events-none opacity-50">
+						<PanelLeft className="h-5 w-5" />
 					</Button>
 					{/* Mobile sheet trigger */}
 					<div className="lg:hidden">
@@ -35,12 +22,12 @@ export default function DashboardFrame({ children }: { children: React.ReactNode
 				</div>
 			</div>
 
-			<div className="hidden lg:block h-full border-r overflow-hidden" style={{ width: open ? 240 : 0, transition: "width 250ms ease" }}>
-				{open ? <Sidebar /> : null}
+			<div className="hidden lg:block h-full overflow-visible relative z-40">
+				<Sidebar />
 			</div>
 
 			<FadeIn>
-				<main className="p-6">{children}</main>
+				<main className="p-6 relative z-10">{children}</main>
 			</FadeIn>
 		</div>
 	);

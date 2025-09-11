@@ -18,6 +18,8 @@ import {
 	Save,
 	X
 } from "lucide-react";
+import { Calendar as UiCalendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface WeeklyHours {
 	id: string;
@@ -45,6 +47,16 @@ interface TeamMember {
 	avatar_url?: string;
 }
 
+interface AvailabilityBlock {
+	id: string;
+	user_id: string;
+	date: string; // ISO date yyyy-mm-dd
+	start_time: string; // HH:MM or HH:MM:SS
+	end_time: string; // HH:MM or HH:MM:SS
+	created_at: string;
+	updated_at: string;
+}
+
 export default function HoursPage() {
 	const supabase = getSupabaseBrowserClient();
 	const [weeklyHours, setWeeklyHours] = useState<WeeklyHours[]>([]);
@@ -63,6 +75,17 @@ export default function HoursPage() {
 		sunday_hours: 0,
 		notes: ""
 	});
+
+	// Availability blocks for exact time ranges
+	const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
+	const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
+	const [currentUserId, setCurrentUserId] = useState<string>("");
+
+	// Add availability dialog state (for current user)
+	const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
+	const [newBlockDate, setNewBlockDate] = useState<Date | undefined>(undefined);
+	const [newBlockStart, setNewBlockStart] = useState<string>("09:00");
+	const [newBlockEnd, setNewBlockEnd] = useState<string>("17:00");
 
 	// Helper function to get Monday of the week
 	function getWeekStart(date: Date): string {
@@ -101,6 +124,7 @@ export default function HoursPage() {
 			setLoading(false);
 			return;
 		}
+		setCurrentUserId(user.id);
 
 		try {
 			// Load weekly hours for current week
@@ -137,17 +161,42 @@ export default function HoursPage() {
 			} else {
 				setTeamMembers(membersData || []);
 			}
+
+			// Load availability blocks for the visible month (if table exists)
+			await loadBlocksForMonth(calendarMonth);
 		} catch (error) {
 			console.error("Unexpected error:", error);
 			toast.error("An unexpected error occurred");
 		} finally {
 			setLoading(false);
 		}
-	}, [currentWeek, supabase]);
+	}, [currentWeek, calendarMonth, supabase]);
+
+	async function loadBlocksForMonth(monthDate: Date) {
+		try {
+			const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1).toISOString().split('T')[0];
+			const last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).toISOString().split('T')[0];
+			const { data, error } = await supabase
+				.from("availability_blocks")
+				.select("*")
+				.gte("date", first)
+				.lte("date", last)
+				.order("date", { ascending: true });
+			if (!error) {
+				setAvailabilityBlocks(data || []);
+			} else if (error.code !== 'PGRST200') {
+				console.error("Error loading availability blocks:", error);
+			}
+		} catch (e) {
+			console.warn("availability_blocks not present yet; skipping");
+		}
+	}
 
 	useEffect(() => {
-		loadData();
-	}, [loadData]);
+		// When calendar month changes (via nav), refresh blocks
+		loadBlocksForMonth(calendarMonth);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [calendarMonth]);
 
 	async function saveWeeklyHours() {
 		setLoading(true);
@@ -308,8 +357,60 @@ export default function HoursPage() {
 		}
 	}
 
+	// Compute hours from availability blocks (fallback to weekly_hours if no blocks)
+	function computeHoursFromBlocks(memberId: string, dateIso: string): number {
+		const blocks = availabilityBlocks.filter(b => b.user_id === memberId && b.date === dateIso);
+		if (blocks.length === 0) return 0;
+		let sum = 0;
+		for (const b of blocks) {
+			const [sh, sm = "0"] = b.start_time.split(":");
+			const [eh, em = "0"] = b.end_time.split(":");
+			const start = parseInt(sh, 10) + parseInt(sm, 10) / 60;
+			const end = parseInt(eh, 10) + parseInt(em, 10) / 60;
+			sum += Math.max(0, end - start);
+		}
+		return Math.max(0, Math.round(sum * 100) / 100);
+	}
+
+	function getMemberDayHours(memberId: string, dayKey: string): number {
+		const idx = days.indexOf(dayKey);
+		if (idx === -1) return 0;
+		const dateIso = weekDates[idx];
+		const blocksHours = computeHoursFromBlocks(memberId, dateIso);
+		if (blocksHours > 0) return blocksHours;
+		const wh = weeklyHours.find(h => h.user_id === memberId);
+		return wh ? getDayHours(wh, dayKey) : 0;
+	}
+
+	function getBlocksForMemberDate(memberId: string, date: Date): AvailabilityBlock[] {
+		const dateIso = new Date(date).toISOString().split('T')[0];
+		return availabilityBlocks.filter(b => b.user_id === memberId && b.date === dateIso);
+	}
+
 	const weekDates = getWeekDates(currentWeek);
 	const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+	// Track which date is selected per member for showing side details
+	const [selectedDateByMember, setSelectedDateByMember] = useState<Record<string, Date>>({});
+
+	useEffect(() => {
+		const defaults: Record<string, Date> = {};
+		teamMembers.forEach((member) => {
+			const hours = weeklyHours.find((h) => h.user_id === member.id);
+			let picked = new Date(currentWeek);
+			if (hours) {
+				for (let i = 0; i < days.length; i++) {
+					const dayKey = days[i];
+					if (getDayHours(hours, dayKey) > 0) {
+						picked = new Date(weekDates[i]);
+						break;
+					}
+				}
+			}
+			defaults[member.id] = picked;
+		});
+		setSelectedDateByMember(defaults);
+	}, [teamMembers, weeklyHours, currentWeek]);
 
 	return (
 		<div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -439,107 +540,128 @@ export default function HoursPage() {
 							</Button>
 						</div>
 					) : (
-						<div className="overflow-x-auto">
-							<table className="w-full border-collapse">
-								<thead>
-									<tr className="border-b">
-										<th className="text-left p-4 font-medium">Team Member</th>
-										{days.map((day, index) => (
-											<th key={day} className="text-center p-4 font-medium min-w-[100px]">
-												<div className="capitalize">{day}</div>
-												<div className="text-xs text-muted-foreground font-normal">
-													{formatDate(weekDates[index]).split(',')[0]}
-												</div>
-											</th>
-										))}
-										<th className="text-center p-4 font-medium">Total</th>
-										<th className="text-center p-4 font-medium">Actions</th>
-									</tr>
-								</thead>
-								<tbody>
-									{weeklyHours.map((hours) => {
-										const user = teamMembers.find(m => m.id === hours.user_id);
-										return (
-											<tr key={hours.id} className="border-b hover:bg-muted/30">
-												<td className="p-4">
-													<div className="flex items-center gap-3">
-														<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-															<span className="text-sm font-medium">
-																{user?.full_name?.[0]?.toUpperCase() || "?"}
-															</span>
-														</div>
-														<div>
-															<div className="font-medium">{user?.full_name || "Unknown User"}</div>
-															{hours.notes && (
-																<div className="text-xs text-muted-foreground max-w-[200px] truncate">
-																	{hours.notes}
+						<div className="space-y-6">
+							{teamMembers.map((member) => {
+								const hours = weeklyHours.find((h) => h.user_id === member.id);
+								const availableFull = weekDates
+									.map((d, idx) => ({ date: new Date(d), dayKey: days[idx] }))
+									.filter(({ dayKey }) => getMemberDayHours(member.id, dayKey) >= 8)
+									.map(({ date }) => date);
+								const availablePartial = weekDates
+									.map((d, idx) => ({ date: new Date(d), dayKey: days[idx] }))
+									.filter(({ dayKey }) => {
+										const h = getMemberDayHours(member.id, dayKey);
+										return h > 0 && h < 8;
+									})
+									.map(({ date }) => date);
+								const selectedDate = selectedDateByMember[member.id] ?? new Date(currentWeek);
+								const selectedIdx = weekDates.findIndex((d) => new Date(d).toDateString() === selectedDate.toDateString());
+								const selectedDayKey = selectedIdx !== -1 ? days[selectedIdx] : null;
+								const selectedHours = selectedDayKey ? getMemberDayHours(member.id, selectedDayKey) : 0;
+								return (
+									<div key={member.id} className="rounded-lg border p-4">
+										<div className="flex items-center gap-3 mb-4">
+											<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+												<span className="text-sm font-medium">{member.full_name?.[0]?.toUpperCase() || "?"}</span>
+											</div>
+											<div>
+												<div className="font-medium">{member.full_name}</div>
+												<div className="text-xs text-muted-foreground">Week of {formatDate(currentWeek)}</div>
+											</div>
+										</div>
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+											<div className="[--cell-size:40px] rounded-lg border p-3">
+												<UiCalendar
+													mode="single"
+													numberOfMonths={1}
+													selected={selectedDate}
+													onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
+													month={calendarMonth}
+													onMonthChange={(d) => setCalendarMonth(d)}
+													showOutsideDays={false}
+													className="w-full"
+													modifiers={{ availableFull, availablePartial }}
+													modifiersClassNames={{
+														availableFull: "after:content-[''] after:block after:mx-auto after:mt-1 after:h-1.5 after:w-1.5 after:rounded-full after:bg-emerald-500",
+														availablePartial: "after:content-[''] after:block after:mx-auto after:mt-1 after:h-1.5 after:w-1.5 after:rounded-full after:bg-yellow-500",
+													}}
+												/>
+											</div>
+											<div className="space-y-2">
+												<div className="text-sm text-muted-foreground">Selected date</div>
+												<div className="rounded-md border p-3">
+													<div className="text-sm font-medium">{selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+													<div className="mt-1 text-sm space-y-1">
+														{selectedIdx === -1 ? (
+															<span className="text-muted-foreground">Outside current week</span>
+														) : getBlocksForMemberDate(member.id, selectedDate).length === 0 ? (
+															<span className="text-muted-foreground">No availability logged</span>
+														) : (
+															<div className="space-y-1">
+																{getBlocksForMemberDate(member.id, selectedDate).map((b) => {
+																	const st = b.start_time.slice(0,5);
+																	const et = b.end_time.slice(0,5);
+																	const dur = ((parseInt(b.end_time.slice(0,2)) + parseInt(b.end_time.slice(3,5))/60) - (parseInt(b.start_time.slice(0,2)) + parseInt(b.start_time.slice(3,5))/60)).toFixed(1);
+																	return (
+																		<div key={b.id} className="flex items-center justify-between rounded border bg-muted/40 px-2 py-1">
+																			<span className="text-xs">{st} – {et}</span>
+																			<span className="text-xs text-muted-foreground">{dur}h</span>
+																		</div>
+																	);
+																})}
+																<div className="text-xs text-muted-foreground">Total: {selectedHours}h</div>
+															</div>
+														)}
+													</div>
+
+												{member.id === currentUserId && (
+													<div className="pt-2">
+														<Dialog open={isAddBlockOpen} onOpenChange={setIsAddBlockOpen}>
+															<DialogTrigger asChild>
+																<Button size="sm" variant="outline">Add availability</Button>
+															</DialogTrigger>
+															<DialogContent className="sm:max-w-md">
+																<DialogHeader>
+																	<DialogTitle>Add availability block</DialogTitle>
+																	<DialogDescription>Select a date and time range you are available to work.</DialogDescription>
+																</DialogHeader>
+																<div className="space-y-4">
+																	<UiCalendar mode="single" selected={newBlockDate ?? selectedDate} onSelect={setNewBlockDate} month={calendarMonth} onMonthChange={setCalendarMonth} showOutsideDays={false} />
+																	<div className="grid grid-cols-2 gap-3">
+																		<div>
+																			<Label htmlFor="start-time">Start</Label>
+																			<Input id="start-time" type="time" value={newBlockStart} onChange={(e) => setNewBlockStart(e.target.value)} />
+																		</div>
+																		<div>
+																			<Label htmlFor="end-time">End</Label>
+																			<Input id="end-time" type="time" value={newBlockEnd} onChange={(e) => setNewBlockEnd(e.target.value)} />
+																		</div>
+																	</div>
 																</div>
-															)}
-														</div>
+																<DialogFooter>
+																	<Button variant="outline" onClick={() => setIsAddBlockOpen(false)}>Cancel</Button>
+																	<Button onClick={async () => {
+																		try {
+																			if (!newBlockDate) return;
+																			const iso = newBlockDate.toISOString().split('T')[0];
+																			if (newBlockEnd <= newBlockStart) { toast.error("End must be after start"); return; }
+																			const { error } = await supabase.from("availability_blocks").insert({ user_id: currentUserId, date: iso, start_time: newBlockStart + ":00", end_time: newBlockEnd + ":00" });
+																			if (error) { toast.error("Failed to add block"); return; }
+																			toast.success("Availability added");
+																			setIsAddBlockOpen(false);
+																			await loadBlocksForMonth(calendarMonth);
+																		} catch (e) { toast.error("Unexpected error"); }
+																	}}>Save</Button>
+																</DialogFooter>
+															</DialogContent>
+														</Dialog>
 													</div>
-												</td>
-											{days.map((day) => (
-												<td key={day} className="text-center p-4">
-													{editingHours === hours.id ? (
-														<Input
-															type="number"
-															min="0"
-															max="24"
-															value={getDayHours(newHours, day)}
-															onChange={(e) => setNewHours(prev => ({ 
-																...prev, 
-																[`${day}_hours`]: parseInt(e.target.value) || 0 
-															}))}
-															className="w-16 text-center"
-														/>
-													) : (
-														<div className={`text-lg font-semibold ${
-															getDayHours(hours, day) === 0 ? 'text-muted-foreground' : 
-															getDayHours(hours, day) >= 8 ? 'text-green-600' : 'text-yellow-600'
-														}`}>
-															{getDayHours(hours, day)}h
-														</div>
-													)}
-												</td>
-											))}
-											<td className="text-center p-4">
-												<div className="text-lg font-bold">
-													{getTotalWeeklyHours(hours)}h
-												</div>
-											</td>
-											<td className="text-center p-4">
-												{editingHours === hours.id ? (
-													<div className="flex gap-1">
-														<Button 
-															size="sm" 
-															onClick={() => updateWeeklyHours(hours.id)}
-															disabled={loading}
-														>
-															<Save className="h-4 w-4" />
-														</Button>
-														<Button 
-															size="sm" 
-															variant="outline"
-															onClick={() => setEditingHours(null)}
-														>
-															<X className="h-4 w-4" />
-														</Button>
-													</div>
-												) : (
-													<Button 
-														size="sm" 
-														variant="outline"
-														onClick={() => editWeeklyHours(hours.id)}
-													>
-														<Edit className="h-4 w-4" />
-													</Button>
 												)}
-											</td>
-										</tr>
-										);
-									})}
-								</tbody>
-							</table>
+											</div>
+										</div>
+									</div>
+								);
+							})}
 						</div>
 					)}
 				</CardContent>

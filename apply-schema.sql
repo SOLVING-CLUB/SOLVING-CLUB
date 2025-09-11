@@ -368,3 +368,31 @@ create policy "Project members can delete files" on storage.objects
 			where id::text = (storage.foldername(name))[2]
 		)
 	);
+
+-- Availability blocks (exact time ranges per date)
+create table if not exists public.availability_blocks (
+	id uuid primary key default gen_random_uuid(),
+	user_id uuid references auth.users(id) on delete cascade not null,
+	date date not null,
+	start_time time not null,
+	end_time time not null,
+	created_at timestamptz default now(),
+	updated_at timestamptz default now(),
+	check (end_time > start_time)
+);
+
+create index if not exists availability_blocks_user_date_idx on public.availability_blocks(user_id, date);
+
+create or replace trigger availability_blocks_set_updated_at
+before update on public.availability_blocks
+for each row execute function public.set_updated_at();
+
+alter table public.availability_blocks enable row level security;
+
+drop policy if exists "Users can view availability blocks" on public.availability_blocks;
+create policy "Users can view availability blocks" on public.availability_blocks
+	for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Users can manage their availability blocks" on public.availability_blocks;
+create policy "Users can manage their availability blocks" on public.availability_blocks
+	for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
