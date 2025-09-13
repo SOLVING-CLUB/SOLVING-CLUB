@@ -51,7 +51,7 @@ export default function MobileSidebar() {
 					})}
 				</nav>
 				<div className="p-4 border-t flex items-center gap-2 sticky bottom-0 bg-background">
-					<ThemeToggle className="shrink-0" />
+					<div className="shrink-0"><ThemeToggle /></div>
 					<Button variant="outline" className="flex-1 max-w-full" onClick={onLogout}>Logout</Button>
 				</div>
 			</SheetContent>
