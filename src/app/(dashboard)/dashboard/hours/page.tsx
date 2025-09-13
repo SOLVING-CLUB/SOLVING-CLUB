@@ -15,6 +15,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Trash2,
+	Pencil,
 	Clock
 } from "lucide-react";
 import { Calendar as UiCalendar } from "@/components/ui/calendar";
@@ -55,6 +56,16 @@ export default function HoursPage() {
 	const [newAvailabilityTitle, setNewAvailabilityTitle] = useState<string>("");
 	const [newAvailabilityType, setNewAvailabilityType] = useState<'available' | 'busy' | 'tentative'>('available');
 	const [newAvailabilityNotes, setNewAvailabilityNotes] = useState<string>("");
+
+	// Edit availability dialog state
+	const [isEditOpen, setIsEditOpen] = useState(false);
+	const [editingAvailabilityId, setEditingAvailabilityId] = useState<string | null>(null);
+	const [editDate, setEditDate] = useState<Date | undefined>(undefined);
+	const [editStart, setEditStart] = useState<string>("09:00");
+	const [editEnd, setEditEnd] = useState<string>("17:00");
+	const [editTitle, setEditTitle] = useState<string>("");
+	const [editType, setEditType] = useState<'available' | 'busy' | 'tentative'>('available');
+	const [editNotes, setEditNotes] = useState<string>("");
 
 	// All Availability by Date state
 	const [showAllByDate, setShowAllByDate] = useState(false);
@@ -163,6 +174,15 @@ export default function HoursPage() {
 		return `${Math.round(dur * 10) / 10}h`;
 	}
 
+	function getEditDurationHours(): string {
+		const [sh, sm = "0"] = editStart.split(":");
+		const [eh, em = "0"] = editEnd.split(":");
+		const start = parseInt(sh, 10) + parseInt(sm, 10) / 60;
+		const end = parseInt(eh, 10) + parseInt(em, 10) / 60;
+		const dur = Math.max(0, end - start);
+		return `${Math.round(dur * 10) / 10}h`;
+	}
+
 	async function saveAvailability() {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
@@ -240,6 +260,73 @@ export default function HoursPage() {
 			}
 
 			toast.success("Availability deleted successfully");
+			loadData();
+		} catch (error) {
+			console.error("Unexpected error:", error);
+			toast.error("An unexpected error occurred");
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	function openEditDialog(a: CalendarAvailability) {
+		setEditingAvailabilityId(a.id);
+		setEditDate(parseYmdToLocalDate(a.date));
+		setEditStart(a.start_time.slice(0, 5));
+		setEditEnd(a.end_time.slice(0, 5));
+		setEditTitle(a.title || "");
+		setEditType(a.availability_type);
+		setEditNotes(a.notes || "");
+		setIsEditOpen(true);
+	}
+
+	async function updateAvailability() {
+		if (!editingAvailabilityId) {
+			return;
+		}
+		setLoading(true);
+		try {
+			if (!editDate) {
+				toast.error("Please select a date");
+				setLoading(false);
+				return;
+			}
+			if (editEnd <= editStart) {
+				toast.error("End time must be after start time");
+				setLoading(false);
+				return;
+			}
+			const { data: { user } } = await supabase.auth.getUser();
+			if (!user) {
+				toast.error("You must be logged in");
+				setLoading(false);
+				return;
+			}
+
+			const { error } = await supabase
+				.from("calendar_availability")
+				.update({
+					date: toYmdLocal(editDate),
+					start_time: editStart + ":00",
+					end_time: editEnd + ":00",
+					title: editTitle || null,
+					notes: editNotes || null,
+					availability_type: editType,
+					updated_at: new Date().toISOString(),
+				})
+				.eq("id", editingAvailabilityId)
+				.eq("user_id", user.id);
+
+			if (error) {
+				console.error("Error updating availability:", error);
+				toast.error("Failed to update availability");
+				setLoading(false);
+				return;
+			}
+
+			toast.success("Availability updated successfully");
+			setIsEditOpen(false);
+			setEditingAvailabilityId(null);
 			loadData();
 		} catch (error) {
 			console.error("Unexpected error:", error);
@@ -445,14 +532,24 @@ export default function HoursPage() {
 											)}
 										</div>
 										{member.id === currentUserId && (
-											<Button
-												size="sm"
-												variant="ghost"
-												onClick={() => deleteAvailability(availability.id)}
-												className="h-9 w-9 p-0 text-red-500 hover:text-red-700 shrink-0"
-											>
-												<Trash2 className="h-4 w-4" />
-											</Button>
+											<div className="flex gap-1">
+												<Button
+													size="sm"
+													variant="ghost"
+													onClick={() => openEditDialog(availability)}
+													className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
+												>
+													<Pencil className="h-4 w-4" />
+												</Button>
+												<Button
+													size="sm"
+													variant="ghost"
+													onClick={() => deleteAvailability(availability.id)}
+													className="h-9 w-9 p-0 text-red-500 hover:text-red-700 shrink-0"
+												>
+													<Trash2 className="h-4 w-4" />
+												</Button>
+											</div>
 										)}
 									</div>
 								</div>
@@ -689,6 +786,9 @@ export default function HoursPage() {
 		);
 	}
 
+	// Compute selected member for the simplified view
+	const selectedMember = teamMembers.find((m) => m.id === memberFilterId);
+
 	return (
 		<div className="w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4 sm:py-8">
 			{/* Header */}
@@ -752,7 +852,7 @@ export default function HoursPage() {
 			</Card>
 			*/}
 
-			{/* Team Calendar View */}
+			{/* Team Availability - Simplified view with member dropdown */}
 			<Card className="rounded-lg sm:rounded-xl overflow-hidden">
 				<CardHeader className="pb-3 px-4 sm:px-6">
 					<div className="flex items-center justify-between">
@@ -766,25 +866,44 @@ export default function HoursPage() {
 					</div>
 				</CardHeader>
 				<CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+					{/* Member dropdown */}
+					<div className="grid sm:grid-cols-[260px_1fr] gap-3 sm:gap-4 items-start mb-4">
+						<div>
+							<div className="text-sm text-muted-foreground mb-1">Member</div>
+							<Select value={memberFilterId} onValueChange={setMemberFilterId}>
+								<SelectTrigger>
+									<SelectValue placeholder="Select a member" />
+								</SelectTrigger>
+								<SelectContent>
+									{teamMembers.map((m) => (
+										<SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="text-sm text-muted-foreground">
+							{selectedMember ? `Showing availability for ${selectedMember.full_name}` : "Select a member"}
+						</div>
+					</div>
+
+					{/* Only keep the member card view */}
+					<div className="space-y-4 sm:space-y-6">
+						{selectedMember ? (
+							renderMemberCard(selectedMember)
+						) : (
+							<div className="text-sm text-muted-foreground">No members available.</div>
+						)}
+					</div>
+					{/* Other elements removed per request */}
+					{/**
 					{renderAllAvailabilityByDate()}
 					{renderAllAvailabilityByMember()}
-					{/* {availabilityData.length === 0 && (
-						<div className="text-center py-6 text-muted-foreground">
-							<Clock className="h-10 w-10 mx-auto mb-2 opacity-50" />
-							<p className="mb-3">No availability logged for this month</p>
-							<Button onClick={() => setIsAddAvailabilityOpen(true)} size="sm">
-								<Plus className="h-4 w-4 mr-2" />
-								Add Your Availability
-							</Button>
-						</div>
-					)} */}
-					<div className="space-y-4 sm:space-y-6">
-						{teamMembers.map(renderMemberCard)}
-					</div>
+					*/}
 				</CardContent>
 			</Card>
 
-			{/* Floating Add button on mobile */}
+			{/* Floating Add button on mobile (commented out as per request) */}
+			{/**
 			{currentUserId && (
 				<Button
 					className="sm:hidden fixed bottom-20 right-5 h-12 w-12 rounded-full shadow-lg z-40"
@@ -796,6 +915,7 @@ export default function HoursPage() {
 					<Plus className="h-5 w-5" />
 				</Button>
 			)}
+			*/}
  
 			{/* Add Availability Dialog */}
 			<Dialog open={isAddAvailabilityOpen} onOpenChange={setIsAddAvailabilityOpen}>
@@ -870,10 +990,86 @@ export default function HoursPage() {
 							</DialogFooter>
 						</div>
 					</div>
-				</DialogContent>
-			</Dialog>
+					</DialogContent>
+				</Dialog>
 
-			{renderAllAvailabilityByDate()}
+			{/* Edit Availability Dialog */}
+			<Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+				<DialogContent className="sm:max-w-2xl p-0 overflow-hidden">
+					<div className="grid md:grid-cols-2">
+						{/* Left: Date selector */}
+						<div className="p-5 border-b md:border-b-0 md:border-r bg-muted/40">
+							<DialogHeader className="p-0">
+								<DialogTitle className="text-base">Edit date</DialogTitle>
+								<DialogDescription>Update the day for this time block.</DialogDescription>
+							</DialogHeader>
+							<div className="mt-4 rounded-md border bg-background p-2 sm:p-3 [--cell-size:24px] sm:[--cell-size:32px] md:[--cell-size:36px]">
+								<UiCalendar mode="single" selected={editDate ?? new Date()} onSelect={setEditDate} month={calendarMonth} onMonthChange={setCalendarMonth} showOutsideDays={false} className="w-full" />
+							</div>
+							{editDate && (
+								<div className="mt-3 text-xs text-muted-foreground">Selected: {editDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+							)}
+						</div>
+
+						{/* Right: Form */}
+						<div className="p-5">
+							<DialogHeader className="p-0">
+								<DialogTitle className="text-base">Edit availability</DialogTitle>
+								<DialogDescription>Change the time, type, and details.</DialogDescription>
+							</DialogHeader>
+							<div className="mt-4 space-y-4">
+								<div className="grid grid-cols-2 gap-3">
+									<div>
+										<Label htmlFor="edit-start-time">Start time</Label>
+										<Input id="edit-start-time" type="time" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+									</div>
+									<div>
+										<Label htmlFor="edit-end-time">End time</Label>
+										<Input id="edit-end-time" type="time" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+									</div>
+								</div>
+								<div className="text-xs text-muted-foreground">Duration: {getEditDurationHours()}</div>
+
+								<div>
+									<Label htmlFor="edit-availability-type">Type</Label>
+									<Select value={editType} onValueChange={(value: 'available' | 'busy' | 'tentative') => setEditType(value)}>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="available">Available</SelectItem>
+											<SelectItem value="busy">Busy</SelectItem>
+											<SelectItem value="tentative">Tentative</SelectItem>
+										</SelectContent>
+									</Select>
+									<div className="mt-1 text-xs text-muted-foreground">Pick how this block should appear on the calendar.</div>
+								</div>
+
+								<div>
+									<Label htmlFor="edit-title">Title (optional)</Label>
+									<Input id="edit-title" placeholder="e.g. Team Meeting, Focus Time" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+								</div>
+
+								<div>
+									<Label htmlFor="edit-notes">Notes (optional)</Label>
+									<Input id="edit-notes" placeholder="Additional details" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+								</div>
+							</div>
+
+							<DialogFooter className="mt-6">
+								<Button variant="outline" onClick={() => setIsEditOpen(false)}>
+									Cancel
+								</Button>
+								<Button onClick={updateAvailability} disabled={loading || !editingAvailabilityId}>
+									{loading ? "Updating..." : "Update"}
+								</Button>
+							</DialogFooter>
+						</div>
+					</div>
+					</DialogContent>
+				</Dialog>
+
+			{/* {renderAllAvailabilityByDate()} */}
 		</div>
 	);
 }
