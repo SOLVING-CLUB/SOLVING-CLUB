@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { 
@@ -57,8 +65,8 @@ interface Member {
 	role: 'owner' | 'admin' | 'member';
 	joined_at: string;
 	user: {
-		full_name: string;
-		avatar_url: string;
+		full_name?: string;
+		avatar_url?: string;
 	};
 }
 
@@ -66,9 +74,10 @@ interface Message {
 	id: string;
 	content: string;
 	created_at: string;
+	user_id?: string;
 	user: {
-		full_name: string;
-		avatar_url: string;
+		full_name?: string;
+		avatar_url?: string;
 	};
 }
 
@@ -100,6 +109,17 @@ export default function ProjectDetailPage() {
 		priority: "medium",
 		due_date: "",
 		assigned_to: ""
+	});
+
+	// Edit task form
+	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+	const [taskBeingEdited, setTaskBeingEdited] = useState<Task | null>(null);
+	const [editTaskState, setEditTaskState] = useState<NewTask>({
+		title: "",
+		description: "",
+		priority: "medium",
+		due_date: "",
+		assigned_to: "",
 	});
 	
 	// Chat
@@ -140,34 +160,79 @@ export default function ProjectDetailPage() {
 
 		setTasks(tasksData || []);
 
-		// Load members
-		const { data: membersData } = await supabase
+		// Load members then enrich with profiles
+		const { data: memberRows } = await supabase
 			.from("project_members")
-			.select(`
-				*,
-				user:profiles(full_name, avatar_url)
-			`)
+			.select("*")
 			.eq("project_id", projectId);
 
-		setMembers(membersData || []);
+		const memberList = (memberRows as Array<{ id: string; user_id: string; role: Member['role']; joined_at: string }> | null) ?? [];
+		let membersEnriched: Member[] = [];
+		if (memberList.length > 0) {
+			const ids = Array.from(new Set(memberList.map(m => m.user_id)));
+			const { data: profiles } = await supabase
+				.from('profiles')
+				.select('id, full_name, avatar_url')
+				.in('id', ids);
+			const map = ((profiles ?? []) as Array<{ id: string; full_name?: string; avatar_url?: string }>).reduce((acc, p) => {
+				acc[p.id] = p;
+				return acc;
+			}, {} as Record<string, { id: string; full_name?: string; avatar_url?: string }>);
+			membersEnriched = memberList.map(m => ({
+				id: m.id,
+				user_id: m.user_id,
+				role: m.role,
+				joined_at: m.joined_at,
+				user: { full_name: map[m.user_id]?.full_name, avatar_url: map[m.user_id]?.avatar_url },
+			}));
+		}
+		setMembers(membersEnriched);
 
-		// Load messages
-		const { data: messagesData } = await supabase
+		// Load messages then enrich with profiles
+		const { data: messageRows } = await supabase
 			.from("project_messages")
-			.select(`
-				*,
-				user:profiles(full_name, avatar_url)
-			`)
+			.select("*")
 			.eq("project_id", projectId)
 			.order("created_at", { ascending: true });
-
-		        setMessages(messagesData || []);
+		const msgList = (messageRows as Array<{ id: string; user_id: string; content: string; created_at: string }> | null) ?? [];
+		let messagesEnriched: Message[] = [];
+		if (msgList.length > 0) {
+			const ids = Array.from(new Set(msgList.map(m => m.user_id)));
+			const { data: profiles } = await supabase
+				.from('profiles')
+				.select('id, full_name, avatar_url')
+				.in('id', ids);
+			const map = ((profiles ?? []) as Array<{ id: string; full_name?: string; avatar_url?: string }>).reduce((acc, p) => {
+				acc[p.id] = p;
+				return acc;
+			}, {} as Record<string, { id: string; full_name?: string; avatar_url?: string }>);
+			messagesEnriched = msgList.map(m => ({
+				id: m.id,
+				content: m.content,
+				created_at: m.created_at,
+				user_id: m.user_id,
+				user: { full_name: map[m.user_id]?.full_name, avatar_url: map[m.user_id]?.avatar_url },
+			}));
+		}
+		setMessages(messagesEnriched);
         setLoading(false);
     }, [projectId, supabase]);
 
 	useEffect(() => {
 		if (projectId) {
 			loadProjectData();
+			// Realtime subscriptions
+			const channel = supabase
+				.channel(`project-${projectId}`)
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_members', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_messages', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_files', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
+				.subscribe();
+
+			return () => {
+				supabase.removeChannel(channel);
+			};
 		}
 	}, [projectId, loadProjectData]);
 
@@ -199,6 +264,67 @@ export default function ProjectDetailPage() {
 		toast.success("Task created successfully");
 		setNewTask({ title: "", description: "", priority: "medium", due_date: "", assigned_to: "" });
 		setIsTaskDialogOpen(false);
+		loadProjectData();
+	}
+
+	async function updateTask() {
+		if (!taskBeingEdited) return;
+		if (!editTaskState.title.trim()) {
+			toast.error("Task title is required");
+			return;
+		}
+
+		setLoading(true);
+		const { error } = await supabase
+			.from("project_tasks")
+			.update({
+				title: editTaskState.title,
+				description: editTaskState.description,
+				priority: editTaskState.priority,
+				due_date: editTaskState.due_date || null,
+				assigned_to: editTaskState.assigned_to || null,
+			})
+			.eq("id", taskBeingEdited.id);
+
+		if (error) {
+			toast.error("Failed to update task");
+			setLoading(false);
+			return;
+		}
+
+		toast.success("Task updated successfully");
+		setIsEditDialogOpen(false);
+		setTaskBeingEdited(null);
+		loadProjectData();
+	}
+
+	async function deleteTask(taskId: string) {
+		if (!confirm("Delete this task? This cannot be undone.")) return;
+		setLoading(true);
+		const { error } = await supabase
+			.from("project_tasks")
+			.delete()
+			.eq("id", taskId);
+		if (error) {
+			toast.error("Failed to delete task");
+			setLoading(false);
+			return;
+		}
+		toast.success("Task deleted");
+		loadProjectData();
+	}
+
+	async function updateTaskStatus(taskId: string, status: Task["status"]) {
+		setLoading(true);
+		const { error } = await supabase
+			.from("project_tasks")
+			.update({ status })
+			.eq("id", taskId);
+		if (error) {
+			toast.error("Failed to update status");
+			setLoading(false);
+			return;
+		}
 		loadProjectData();
 	}
 
@@ -525,9 +651,40 @@ export default function ProjectDetailPage() {
 													</div>
 												)}
 											</div>
-											<Button variant="outline" size="sm">
-												<MoreVertical className="h-4 w-4" />
-											</Button>
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button variant="outline" size="sm">
+														<MoreVertical className="h-4 w-4" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end" className="w-48">
+													<DropdownMenuLabel>Actions</DropdownMenuLabel>
+													<DropdownMenuSeparator />
+													<DropdownMenuLabel className="text-xs text-muted-foreground">Status</DropdownMenuLabel>
+													<DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'todo')}>Mark as To Do</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'in-progress')}>Mark In Progress</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'completed')}>Mark Completed</DropdownMenuItem>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														onClick={() => {
+															setTaskBeingEdited(task);
+															setEditTaskState({
+																title: task.title,
+																description: task.description || "",
+																priority: task.priority,
+																due_date: task.due_date ? new Date(task.due_date).toISOString().slice(0,10) : "",
+																assigned_to: task.assigned_to || "",
+															});
+															setIsEditDialogOpen(true);
+														}}
+													>
+														Edit Task
+													</DropdownMenuItem>
+													<DropdownMenuItem className="text-red-600" onClick={() => deleteTask(task.id)}>
+														Delete Task
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
 										</div>
 									))
 								)}
@@ -628,6 +785,77 @@ export default function ProjectDetailPage() {
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			{/* Edit Task Dialog */}
+			<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Edit Task</DialogTitle>
+						<DialogDescription>Update task details and assignment.</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="edit-task-title">Task Title *</Label>
+							<Input
+								id="edit-task-title"
+								value={editTaskState.title}
+								onChange={(e) => setEditTaskState(prev => ({ ...prev, title: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="edit-task-description">Description</Label>
+							<Textarea
+								id="edit-task-description"
+								value={editTaskState.description}
+								onChange={(e) => setEditTaskState(prev => ({ ...prev, description: e.target.value }))}
+								rows={3}
+							/>
+						</div>
+						<div className="grid grid-cols-2 gap-4">
+							<div className="space-y-2">
+								<Label htmlFor="edit-task-priority">Priority</Label>
+								<select
+									id="edit-task-priority"
+									className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+									value={editTaskState.priority}
+									onChange={(e) => setEditTaskState(prev => ({ ...prev, priority: e.target.value as NewTask['priority'] }))}
+								>
+									<option value="low">Low</option>
+									<option value="medium">Medium</option>
+									<option value="high">High</option>
+								</select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="edit-task-due-date">Due Date</Label>
+								<Input
+									id="edit-task-due-date"
+									type="date"
+									value={editTaskState.due_date}
+									onChange={(e) => setEditTaskState(prev => ({ ...prev, due_date: e.target.value }))}
+								/>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="edit-task-assigned">Assign To</Label>
+							<select
+								id="edit-task-assigned"
+								className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								value={editTaskState.assigned_to}
+								onChange={(e) => setEditTaskState(prev => ({ ...prev, assigned_to: e.target.value }))}
+							>
+								<option value="">Unassigned</option>
+								{members.map((m) => (
+									<option key={m.user_id} value={m.user_id}>{m.user.full_name}</option>
+								))}
+							</select>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+						<Button onClick={updateTask} disabled={loading}>{loading ? "Saving..." : "Save Changes"}</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

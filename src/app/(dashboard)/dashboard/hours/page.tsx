@@ -395,6 +395,14 @@ export default function HoursPage() {
 		return new Date(y, (m || 1) - 1, d || 1);
 	}
 
+	function isPastDate(date: Date): boolean {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const test = new Date(date);
+		test.setHours(0, 0, 0, 0);
+		return test < today;
+	}
+
 	// Track selected date per member
 	const [selectedDateByMember, setSelectedDateByMember] = useState<Record<string, Date>>({});
 
@@ -564,13 +572,14 @@ export default function HoursPage() {
 							size="default"
 							variant="outline"
 							className="w-full h-12"
+							disabled={isPastDate(selectedDate)}
 							onClick={() => {
 								setNewAvailabilityDate(selectedDate);
 								setIsAddAvailabilityOpen(true);
 							}}
 						>
 							<Plus className="h-5 w-5 mr-2" />
-							Add Availability
+							{isPastDate(selectedDate) ? "Cannot add to past" : "Add Availability"}
 						</Button>
 					</div>
 				)}

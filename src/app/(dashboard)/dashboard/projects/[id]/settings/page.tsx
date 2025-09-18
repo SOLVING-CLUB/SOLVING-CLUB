@@ -38,9 +38,9 @@ interface Member {
 	    role: 'owner' | 'admin' | 'member';
 	joined_at: string;
 	user: {
-		full_name: string;
-		avatar_url: string;
-		email: string;
+		full_name?: string;
+		avatar_url?: string;
+		email?: string;
 	};
 }
 
@@ -106,16 +106,32 @@ export default function ProjectSettingsPage() {
 			client_notes: projectData.client_notes || "",
 		});
 
-		// Load members
-		const { data: membersData } = await supabase
+		// Load members then enrich with profiles
+		const { data: memberRows } = await supabase
 			.from("project_members")
-			.select(`
-				*,
-				user:profiles(full_name, avatar_url, email)
-			`)
+			.select("*")
 			.eq("project_id", projectId);
-
-		        setMembers(membersData || []);
+		const memberList = (memberRows as Array<{ id: string; user_id: string; role: Member['role']; joined_at: string }> | null) ?? [];
+		let membersEnriched: Member[] = [];
+		if (memberList.length > 0) {
+			const ids = Array.from(new Set(memberList.map(m => m.user_id)));
+			const { data: profiles } = await supabase
+				.from('profiles')
+				.select('id, full_name, avatar_url, email')
+				.in('id', ids);
+			const map = ((profiles ?? []) as Array<{ id: string; full_name?: string; avatar_url?: string; email?: string }>).reduce((acc, p) => {
+				acc[p.id] = p;
+				return acc;
+			}, {} as Record<string, { id: string; full_name?: string; avatar_url?: string; email?: string }>);
+			membersEnriched = memberList.map(m => ({
+				id: m.id,
+				user_id: m.user_id,
+				role: m.role,
+				joined_at: m.joined_at,
+				user: { full_name: map[m.user_id]?.full_name, avatar_url: map[m.user_id]?.avatar_url, email: map[m.user_id]?.email },
+			}));
+		}
+		setMembers(membersEnriched);
 
 		// Load invite candidates (all profiles excluding current members)
 		const { data: profilesData } = await supabase
@@ -138,6 +154,14 @@ export default function ProjectSettingsPage() {
 	useEffect(() => {
 		if (projectId) {
 			loadProjectData();
+			const channel = supabase
+				.channel(`project-settings-${projectId}`)
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_members', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` }, () => loadProjectData())
+				.subscribe();
+			return () => {
+				supabase.removeChannel(channel);
+			};
 		}
 	}, [projectId, loadProjectData]);
 
@@ -284,6 +308,21 @@ export default function ProjectSettingsPage() {
 		}
 
 		toast.success("Member removed successfully");
+		loadProjectData();
+	}
+
+	async function updateMemberRole(memberId: string, newRole: Member['role']) {
+		setLoading(true);
+		const { error } = await supabase
+			.from('project_members')
+			.update({ role: newRole })
+			.eq('id', memberId);
+		if (error) {
+			toast.error('Failed to update role');
+			setLoading(false);
+			return;
+		}
+		toast.success('Role updated');
 		loadProjectData();
 	}
 
@@ -488,12 +527,21 @@ export default function ProjectSettingsPage() {
 												<div>
 													<div className="flex items-center gap-2">
 														<span className="font-medium">{m.user.full_name || m.user.email}</span>
-														<Badge variant="outline">{m.role}</Badge>
+														<select
+															className="flex h-8 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm"
+															value={m.role}
+															onChange={(e) => updateMemberRole(m.id, e.target.value as Member['role'])}
+															disabled={loading || m.role === 'owner'}
+														>
+															<option value="owner">owner</option>
+															<option value="admin">admin</option>
+															<option value="member">member</option>
+														</select>
 													</div>
 													<p className="text-xs text-muted-foreground">Joined {new Date(m.joined_at).toLocaleDateString()}</p>
 												</div>
 											</div>
-											<Button variant="outline" size="sm" onClick={() => removeMember(m.id)} disabled={loading}>
+											<Button variant="outline" size="sm" onClick={() => removeMember(m.id)} disabled={loading || m.role === 'owner'}>
 												<Trash2 className="h-4 w-4" />
 											</Button>
 										</div>
