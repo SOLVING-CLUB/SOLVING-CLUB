@@ -27,7 +27,6 @@ interface ProjectFile {
 export default function FileUpload({ projectId, onFileUploaded }: FileUploadProps) {
 	const [files, setFiles] = useState<ProjectFile[]>([]);
 	const [uploading, setUploading] = useState(false);
-	const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 	const [dragOver, setDragOver] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const supabase = getSupabaseBrowserClient();
@@ -154,31 +153,12 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 			const filePath = `projects/${projectId}/${fileName}`;
 
 			// Upload file to Supabase Storage
-			// Track progress using a manual chunked upload fallback
-			// Supabase JS doesn't provide native progress, so emulate via slicing for UX
-			const chunkSize = 2 * 1024 * 1024; // 2MB
-			if (file.size > chunkSize) {
-				// Fallback: show a simulated progress while uploading in one go
-				const intervalId = setInterval(() => {
-					setUploadProgress((p) => ({ ...p, [fileName]: Math.min((p[fileName] ?? 0) + 10, 90) }));
-				}, 300);
-				const { error: uploadError } = await supabase.storage
-					.from('project-files')
-					.upload(filePath, file);
-				clearInterval(intervalId);
-				if (uploadError) {
-					toast.error("Failed to upload file");
-					return;
-				}
-				setUploadProgress((p) => ({ ...p, [fileName]: 100 }));
-			} else {
-				const { error: uploadError } = await supabase.storage
-					.from('project-files')
-					.upload(filePath, file);
-				if (uploadError) {
-					toast.error("Failed to upload file");
-					return;
-				}
+			const { error: uploadError } = await supabase.storage
+				.from('project-files')
+				.upload(filePath, file);
+			if (uploadError) {
+				toast.error("Failed to upload file");
+				return;
 			}
 
 			if (uploadError) {
@@ -233,7 +213,6 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 			toast.error("An error occurred while uploading the file");
 		} finally {
 			setUploading(false);
-			setUploadProgress((p) => ({ ...p, }));
 		}
 	};
 
