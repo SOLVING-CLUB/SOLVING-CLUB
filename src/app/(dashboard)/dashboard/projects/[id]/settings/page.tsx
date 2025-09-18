@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -138,7 +137,7 @@ export default function ProjectSettingsPage() {
 			.from("profiles")
 			.select("id, full_name, email")
 			.order("full_name", { ascending: true });
-		const memberIds: string[] = ((membersData ?? []) as Array<{ user_id: string }>).map((m) => m.user_id);
+		const memberIds: string[] = (memberList as Array<{ user_id: string }>).map((m) => m.user_id);
 		const candidates = ((profilesData ?? []) as Array<{ id: string; full_name: string; email: string }>).filter((p) => !memberIds.includes(p.id));
 		setInviteCandidates(candidates);
         setLoading(false);
@@ -163,7 +162,7 @@ export default function ProjectSettingsPage() {
 				supabase.removeChannel(channel);
 			};
 		}
-	}, [projectId, loadProjectData]);
+	}, [projectId, loadProjectData, supabase]);
 
 	async function updateProject() {
 		if (!projectSettings.name.trim()) {

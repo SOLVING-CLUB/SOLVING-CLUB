@@ -234,7 +234,7 @@ export default function ProjectDetailPage() {
 				supabase.removeChannel(channel);
 			};
 		}
-	}, [projectId, loadProjectData]);
+	}, [projectId, loadProjectData, supabase]);
 
 	async function createTask() {
 		if (!newTask.title.trim()) {

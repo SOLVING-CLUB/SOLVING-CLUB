@@ -52,7 +52,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 			if (rows.length === 0) {
 				// Fallback: list directly from Storage when DB metadata is missing
 				// Try canonical path: projects/<projectId>
-				let listResult = await supabase.storage
+				const listResult = await supabase.storage
 					.from('project-files')
 					.list(`projects/${projectId}`);
 				let objects = listResult.data;
@@ -128,7 +128,7 @@ export default function FileUpload({ projectId, onFileUploaded }: FileUploadProp
 		return () => {
 			supabase.removeChannel(channel);
 		};
-	}, [projectId, loadFiles]);
+	}, [projectId, loadFiles, supabase]);
 
 	const handleFileSelect = (selectedFiles: FileList | null) => {
 		if (!selectedFiles) return;

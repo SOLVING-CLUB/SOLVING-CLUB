@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Calendar, FileText, MessageSquare, Settings, Eye } from "lucide-react";
 import Link from "next/link";
-import Spinner from "@/components/ui/spinner";
 import { useRouter } from "next/navigation";
 
 export type Project = {
