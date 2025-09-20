@@ -76,7 +76,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
   const [paymentForm, setPaymentForm] = useState({
     clientId: '',
     amount: '',
-    currency: 'USD',
+    currency: 'INR',
     paymentDate: '',
     paymentMethod: 'bank_transfer' as 'bank_transfer' | 'credit_card' | 'paypal' | 'check' | 'cash' | 'other',
     paymentReference: '',
@@ -102,7 +102,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
           projectId,
           clientId: '1',
           amount: 15000,
-          currency: 'USD',
+          currency: 'INR',
           paymentDate: '2024-01-20',
           paymentMethod: 'bank_transfer' as 'bank_transfer' | 'credit_card' | 'paypal' | 'check' | 'cash' | 'other',
           paymentReference: 'TXN-001',
@@ -128,7 +128,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
           projectId,
           clientId: '1',
           amount: 10000,
-          currency: 'USD',
+          currency: 'INR',
           paymentDate: '2024-01-05',
           paymentMethod: 'credit_card',
           paymentReference: 'TXN-002',
@@ -143,7 +143,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
           projectId,
           clientId: '2',
           amount: 5000,
-          currency: 'USD',
+          currency: 'INR',
           paymentDate: '2024-02-01',
           paymentMethod: 'paypal',
           paymentReference: 'TXN-003',
@@ -185,7 +185,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
       setPaymentForm({
         clientId: '',
         amount: '',
-        currency: 'USD',
+        currency: 'INR',
         paymentDate: '',
         paymentMethod: 'bank_transfer' as 'bank_transfer' | 'credit_card' | 'paypal' | 'check' | 'cash' | 'other',
         paymentReference: '',
@@ -209,7 +209,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
       setPaymentForm({
         clientId: '',
         amount: '',
-        currency: 'USD',
+        currency: 'INR',
         paymentDate: '',
         paymentMethod: 'bank_transfer' as 'bank_transfer' | 'credit_card' | 'paypal' | 'check' | 'cash' | 'other',
         paymentReference: '',
@@ -312,7 +312,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              ${getTotalRevenue().toLocaleString()}
+              ₹{getTotalRevenue().toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               From completed payments
@@ -327,7 +327,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              ${getPendingAmount().toLocaleString()}
+              ₹{getPendingAmount().toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               Awaiting confirmation
@@ -413,7 +413,7 @@ export function PaymentTracker({ projectId }: PaymentTrackerProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="INR">INR</SelectItem>
                         <SelectItem value="EUR">EUR</SelectItem>
                         <SelectItem value="GBP">GBP</SelectItem>
                         <SelectItem value="CAD">CAD</SelectItem>

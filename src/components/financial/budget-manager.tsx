@@ -61,7 +61,7 @@ export function BudgetManager({ projectId }: BudgetManagerProps) {
   // Form states
   const [budgetForm, setBudgetForm] = useState({
     totalBudget: '',
-    currency: 'USD',
+    currency: 'INR',
     budgetType: 'fixed' as 'fixed' | 'hourly' | 'milestone',
     hourlyRate: '',
     estimatedHours: '',
@@ -87,7 +87,7 @@ export function BudgetManager({ projectId }: BudgetManagerProps) {
         id: '1',
         projectId,
         totalBudget: 50000,
-        currency: 'USD',
+        currency: 'INR',
         budgetType: 'fixed',
         contingencyPercentage: 10,
         categories: [
@@ -279,7 +279,7 @@ export function BudgetManager({ projectId }: BudgetManagerProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="INR">INR</SelectItem>
                         <SelectItem value="EUR">EUR</SelectItem>
                         <SelectItem value="GBP">GBP</SelectItem>
                         <SelectItem value="CAD">CAD</SelectItem>
@@ -370,7 +370,7 @@ export function BudgetManager({ projectId }: BudgetManagerProps) {
             <div>
               <CardTitle>Budget Overview</CardTitle>
               <CardDescription>
-                Total budget: ${budget.totalBudget.toLocaleString()} {budget.currency}
+                Total budget: ₹{budget.totalBudget.toLocaleString()} {budget.currency}
               </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
@@ -384,15 +384,15 @@ export function BudgetManager({ projectId }: BudgetManagerProps) {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold">${getTotalAllocated().toLocaleString()}</div>
+                <div className="text-2xl font-bold">₹{getTotalAllocated().toLocaleString()}</div>
                 <div className="text-sm text-muted-foreground">Total Allocated</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">${getTotalSpent().toLocaleString()}</div>
+                <div className="text-2xl font-bold text-green-600">₹{getTotalSpent().toLocaleString()}</div>
                 <div className="text-sm text-muted-foreground">Total Spent</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">${(getTotalAllocated() - getTotalSpent()).toLocaleString()}</div>
+                <div className="text-2xl font-bold text-blue-600">₹{(getTotalAllocated() - getTotalSpent()).toLocaleString()}</div>
                 <div className="text-sm text-muted-foreground">Remaining</div>
               </div>
             </div>
@@ -440,8 +440,8 @@ export function BudgetManager({ projectId }: BudgetManagerProps) {
                     </div>
                     <div className="space-y-1">
                       <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Allocated: ${category.allocatedAmount.toLocaleString()}</span>
-                        <span>Spent: ${category.spentAmount.toLocaleString()}</span>
+                        <span>Allocated: ₹{category.allocatedAmount.toLocaleString()}</span>
+                        <span>Spent: ₹{category.spentAmount.toLocaleString()}</span>
                       </div>
                       <Progress value={utilization} className="h-2" />
                       {category.description && (

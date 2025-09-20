@@ -13,7 +13,7 @@ This document outlines the simplified project-specific financial management syst
 
 ### 2. **Project Budget Management**
 - **Total Budget**: Set overall project budget amount
-- **Currency Support**: USD, EUR, GBP, CAD
+- **Currency Support**: INR, USD, EUR, GBP, CAD
 - **Payment Installments**: Define when payments are due
 - **Installment Details**: Amount, due date, and description for each installment
 - **Status Tracking**: Track which installments are paid, pending, or overdue

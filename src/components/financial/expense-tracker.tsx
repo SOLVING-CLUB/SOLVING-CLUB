@@ -74,7 +74,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
     title: '',
     description: '',
     amount: '',
-    currency: 'USD',
+    currency: 'INR',
     expenseDate: '',
     category: 'other' as 'labor' | 'materials' | 'software' | 'travel' | 'other',
     vendor: '',
@@ -103,7 +103,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           title: 'Development Tools License',
           description: 'Annual license for development software',
           amount: 1200,
-          currency: 'USD',
+          currency: 'INR',
           expenseDate: '2024-01-15',
           category: 'software',
           vendor: 'Adobe',
@@ -121,7 +121,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           title: 'Server Hosting',
           description: 'Monthly AWS hosting costs',
           amount: 800,
-          currency: 'USD',
+          currency: 'INR',
           expenseDate: '2024-01-10',
           category: 'materials',
           vendor: 'Amazon Web Services',
@@ -139,7 +139,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           title: 'Team Lunch',
           description: 'Client meeting lunch',
           amount: 150,
-          currency: 'USD',
+          currency: 'INR',
           expenseDate: '2024-01-20',
           category: 'other' as 'labor' | 'materials' | 'software' | 'travel' | 'other',
           vendor: 'Restaurant ABC',
@@ -156,7 +156,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           title: 'Design Software',
           description: 'Figma Pro subscription',
           amount: 300,
-          currency: 'USD',
+          currency: 'INR',
           expenseDate: '2024-01-05',
           category: 'software',
           vendor: 'Figma',
@@ -201,7 +201,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
         title: '',
         description: '',
         amount: '',
-        currency: 'USD',
+        currency: 'INR',
         expenseDate: '',
         category: 'other' as 'labor' | 'materials' | 'software' | 'travel' | 'other',
         vendor: '',
@@ -227,7 +227,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
         title: '',
         description: '',
         amount: '',
-        currency: 'USD',
+        currency: 'INR',
         expenseDate: '',
         category: 'other' as 'labor' | 'materials' | 'software' | 'travel' | 'other',
         vendor: '',
@@ -355,7 +355,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              ${getTotalExpenses().toLocaleString()}
+              ₹{getTotalExpenses().toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               All recorded expenses
@@ -370,7 +370,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              ${getApprovedExpenses().toLocaleString()}
+              ₹{getApprovedExpenses().toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               Approved for reimbursement
@@ -385,7 +385,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              ${getPendingExpenses().toLocaleString()}
+              ₹{getPendingExpenses().toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               Awaiting approval
@@ -451,7 +451,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="INR">INR</SelectItem>
                         <SelectItem value="EUR">EUR</SelectItem>
                         <SelectItem value="GBP">GBP</SelectItem>
                         <SelectItem value="CAD">CAD</SelectItem>
@@ -611,7 +611,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-right">
-                    <p className="font-medium">${expense.amount.toLocaleString()}</p>
+                    <p className="font-medium">₹{expense.amount.toLocaleString()}</p>
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(expense.status)}
                       <Badge variant={getStatusVariant(expense.status)}>
@@ -657,7 +657,7 @@ export function ExpenseTracker({ projectId }: ExpenseTrackerProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Amount</Label>
-                  <p className="text-lg font-semibold">${selectedExpense.amount.toLocaleString()} {selectedExpense.currency}</p>
+                  <p className="text-lg font-semibold">₹{selectedExpense.amount.toLocaleString()} {selectedExpense.currency}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Status</Label>

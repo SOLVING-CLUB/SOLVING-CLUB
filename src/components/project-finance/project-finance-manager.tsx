@@ -657,7 +657,6 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                           onChange={(e) => setBudgetForm({ ...budgetForm, currency: e.target.value })}
                         >
                           <option value="INR">INR</option>
-                          <option value="USD">USD</option>
                           <option value="EUR">EUR</option>
                           <option value="GBP">GBP</option>
                           <option value="CAD">CAD</option>
@@ -761,7 +760,7 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                     <CardTitle className="text-sm font-medium">Total Budget</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">${budget.totalBudget.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">₹{budget.totalBudget.toLocaleString()}</div>
                     <p className="text-xs text-muted-foreground">{budget.currency}</p>
                   </CardContent>
                 </Card>
@@ -770,7 +769,7 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                     <CardTitle className="text-sm font-medium">Amount Paid</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">${budget.totalPaid.toLocaleString()}</div>
+                    <div className="text-2xl font-bold text-green-600">₹{budget.totalPaid.toLocaleString()}</div>
                     <p className="text-xs text-muted-foreground">Received from client</p>
                   </CardContent>
                 </Card>
@@ -779,7 +778,7 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                     <CardTitle className="text-sm font-medium">Remaining</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">${budget.remainingAmount.toLocaleString()}</div>
+                    <div className="text-2xl font-bold text-orange-600">₹{budget.remainingAmount.toLocaleString()}</div>
                     <p className="text-xs text-muted-foreground">Outstanding amount</p>
                   </CardContent>
                 </Card>
@@ -794,7 +793,7 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                       <div className="flex items-center space-x-4">
                         {getStatusIcon(installment.status)}
                         <div>
-                          <p className="font-medium">${installment.amount.toLocaleString()}</p>
+                          <p className="font-medium">₹{installment.amount.toLocaleString()}</p>
                           <p className="text-sm text-muted-foreground">{installment.description}</p>
                           <p className="text-xs text-muted-foreground">
                             Due: {new Date(installment.dueDate).toLocaleDateString()}
@@ -873,7 +872,7 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                       <option value="">Select installment</option>
                       {budget?.installments.map((installment) => (
                         <option key={installment.id} value={installment.id}>
-                          {installment.description} - ${installment.amount.toLocaleString()}
+                          {installment.description} - ₹{installment.amount.toLocaleString()}
                         </option>
                       ))}
                     </select>
@@ -944,7 +943,7 @@ export function ProjectFinanceManager({ projectId, projectName }: ProjectFinance
                   <div className="flex items-center space-x-4">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <div>
-                      <p className="font-medium">${payment.amount.toLocaleString()}</p>
+                      <p className="font-medium">₹{payment.amount.toLocaleString()}</p>
                       <p className="text-sm text-muted-foreground">{payment.description}</p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(payment.paymentDate).toLocaleDateString()}
