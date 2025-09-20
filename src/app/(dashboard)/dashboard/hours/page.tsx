@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
+import { HoursSkeleton } from "@/components/ui/loading-states";
 import { 
 	Plus, 
 	Calendar, 
@@ -109,7 +110,7 @@ export default function HoursPage() {
 			if (availabilityError) {
 				console.error("Error loading calendar availability:", availabilityError);
 				if (availabilityError.code !== 'PGRST200') {
-					toast.error("Failed to load calendar availability");
+					toast.error("Error", "Failed to load calendar availability");
 				}
 			} else {
 				setAvailabilityData(availabilityData || []);
@@ -136,7 +137,7 @@ export default function HoursPage() {
 			}
 		} catch (error) {
 			console.error("Unexpected error:", error);
-			toast.error("An unexpected error occurred");
+			toast.error("Error", "An unexpected error occurred");
 		} finally {
 			setLoading(false);
 		}
@@ -187,20 +188,20 @@ export default function HoursPage() {
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) {
-			toast.error("You must be logged in");
+			toast.error("Authentication Error", "You must be logged in");
 			setLoading(false);
 			return;
 		}
 
 		try {
 			if (!newAvailabilityDate) {
-				toast.error("Please select a date");
+				toast.error("Validation Error", "Please select a date");
 				setLoading(false);
 				return;
 			}
 
 			if (newAvailabilityEnd <= newAvailabilityStart) {
-				toast.error("End time must be after start time");
+				toast.error("Validation Error", "End time must be after start time");
 					setLoading(false);
 					return;
 				}
@@ -221,12 +222,12 @@ export default function HoursPage() {
 
 				if (error) {
 				console.error("Error creating calendar availability:", error);
-				toast.error("Failed to save availability");
+				toast.error("Error", "Failed to save availability");
 					setLoading(false);
 					return;
 			}
 
-			toast.success("Availability saved successfully");
+			toast.success("Availability Saved", "Your availability has been saved successfully");
 			setIsAddAvailabilityOpen(false);
 			// Reset form
 			setNewAvailabilityDate(undefined);
@@ -238,7 +239,7 @@ export default function HoursPage() {
 			loadData();
 		} catch (error) {
 			console.error("Unexpected error:", error);
-			toast.error("An unexpected error occurred");
+			toast.error("Error", "An unexpected error occurred");
 		} finally {
 			setLoading(false);
 		}
@@ -254,16 +255,16 @@ export default function HoursPage() {
 
 			if (error) {
 				console.error("Error deleting availability:", error);
-				toast.error("Failed to delete availability");
+				toast.error("Error", "Failed to delete availability");
 				setLoading(false);
 				return;
 			}
 
-			toast.success("Availability deleted successfully");
+			toast.success("Availability Deleted", "Your availability has been deleted successfully");
 			loadData();
 		} catch (error) {
 			console.error("Unexpected error:", error);
-			toast.error("An unexpected error occurred");
+			toast.error("Error", "An unexpected error occurred");
 		} finally {
 			setLoading(false);
 		}
@@ -287,18 +288,18 @@ export default function HoursPage() {
 		setLoading(true);
 		try {
 			if (!editDate) {
-				toast.error("Please select a date");
+				toast.error("Validation Error", "Please select a date");
 				setLoading(false);
 				return;
 			}
 			if (editEnd <= editStart) {
-				toast.error("End time must be after start time");
+				toast.error("Validation Error", "End time must be after start time");
 				setLoading(false);
 				return;
 			}
 			const { data: { user } } = await supabase.auth.getUser();
 			if (!user) {
-				toast.error("You must be logged in");
+				toast.error("Authentication Error", "You must be logged in");
 				setLoading(false);
 				return;
 			}
@@ -319,18 +320,18 @@ export default function HoursPage() {
 
 			if (error) {
 				console.error("Error updating availability:", error);
-				toast.error("Failed to update availability");
+				toast.error("Error", "Failed to update availability");
 				setLoading(false);
 				return;
 			}
 
-			toast.success("Availability updated successfully");
+			toast.success("Availability Updated", "Your availability has been updated successfully");
 			setIsEditOpen(false);
 			setEditingAvailabilityId(null);
 			loadData();
 		} catch (error) {
 			console.error("Unexpected error:", error);
-			toast.error("An unexpected error occurred");
+			toast.error("Error", "An unexpected error occurred");
 		} finally {
 			setLoading(false);
 		}
@@ -797,6 +798,10 @@ export default function HoursPage() {
 
 	// Compute selected member for the simplified view
 	const selectedMember = teamMembers.find((m) => m.id === memberFilterId);
+
+	if (loading && availabilityData.length === 0) {
+		return <HoursSkeleton />;
+	}
 
 	return (
 		<div className="w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-4 sm:py-8">

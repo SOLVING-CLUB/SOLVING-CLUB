@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { ProfileSkeleton } from "@/components/ui/loading-states";
+import { toast } from "@/lib/toast";
 import { User2, Briefcase, Sparkles, Link as LinkIcon, FileText, Pencil, Plus } from "lucide-react";
 import ChipInput from "@/components/chip-input";
 
@@ -144,7 +145,7 @@ export default function ProfilePage() {
 			if (!user) return;
 			const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
 			if (error) {
-				toast.error(error.message);
+				toast.error("Error", error.message);
 				setInitialLoading(false);
 				return;
 			}
@@ -176,8 +177,8 @@ export default function ProfilePage() {
 		setLoading(true);
 		const { error } = await supabase.from("profiles").upsert(profile, { onConflict: "id" });
 		setLoading(false);
-		if (error) return toast.error(error.message);
-		toast.success("Profile saved.");
+		if (error) return toast.error("Error", error.message);
+		toast.success("Profile saved", "Your profile has been updated successfully.");
 	}
 
 	async function upsertSection(next: ProfileSection) {
@@ -200,15 +201,19 @@ export default function ProfilePage() {
 							.upsert(payload, { onConflict: "user_id,key" })
 			.select();
 		setLoading(false);
-		if (error) return toast.error(error.message);
+		if (error) return toast.error("Error", error.message);
 		if (data && data[0]) {
 			setSections((prev) => {
 				const others = prev.filter((s) => s.key !== data[0].key);
 				return [...others, data[0]].sort((a, b) => a.position - b.position);
 			});
 			setEditingKey(null);
-			toast.success(`${next.title} updated.`);
+			toast.success("Section updated", `${next.title} has been updated successfully.`);
 		}
+	}
+
+	if (initialLoading) {
+		return <ProfileSkeleton />;
 	}
 
 	return (
@@ -796,10 +801,10 @@ export default function ProfilePage() {
 															.eq("id", s.id);
 														setLoading(false);
 														if (error) {
-															toast.error(error.message);
+															toast.error("Error", error.message);
 														} else {
 															setSections(prev => prev.filter(sec => sec.id !== s.id));
-															toast.success(`${s.title} deleted successfully`);
+															toast.success("Section deleted", `${s.title} has been deleted successfully`);
 														}
 													}
 												}}

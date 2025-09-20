@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { toast } from "sonner";
-import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { ProjectsSkeleton } from "@/components/ui/loading-states";
+import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye, Loader2, LayoutTemplate } from "lucide-react";
 import Link from "next/link";
+import { ProjectTemplateSelector } from "@/components/project-template-selector";
+import { ProjectTemplate } from "@/lib/project-templates";
 
 interface Project {
 	id: string;
@@ -74,6 +77,7 @@ export default function ProjectsPage() {
 	const [loading, setLoading] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false);
 	const [useExistingClient, setUseExistingClient] = useState(true);
 	const [selectedClientId, setSelectedClientId] = useState<string>("");
 	const [newProject, setNewProject] = useState<NewProject>({
@@ -105,7 +109,7 @@ export default function ProjectsPage() {
 
 			if (ownedError) {
 				console.error("Error loading owned projects:", ownedError);
-				toast.error("Failed to load projects");
+				toast.error("Error", "Failed to load projects");
 				setLoading(false);
 				return;
 			}
@@ -120,7 +124,7 @@ export default function ProjectsPage() {
 			const hasMemberError = Boolean((memberError as unknown as { message?: string })?.message);
 			if (hasMemberError) {
 				console.error("Error loading member projects:", memberError);
-				toast.error("Failed to load projects");
+				toast.error("Error", "Failed to load projects");
 				setLoading(false);
 				return;
 			}
@@ -164,7 +168,7 @@ export default function ProjectsPage() {
 			setProjects(projectsWithCounts);
 		} catch (error) {
 			console.error("Unexpected error loading projects:", error);
-			toast.error("An unexpected error occurred while loading projects");
+			toast.error("Error", "An unexpected error occurred while loading projects");
 		} finally {
 			setLoading(false);
 		}
@@ -188,16 +192,30 @@ export default function ProjectsPage() {
 		loadClients();
 	}, [loadProjects, loadClients]);
 
+	function handleTemplateSelect(template: ProjectTemplate, customData: { name: string; description: string; status: 'planning' | 'active' | 'completed' | 'on-hold'; client_name?: string; client_email?: string; client_company?: string; client_phone?: string; client_notes?: string }) {
+		setNewProject({
+			name: customData.name,
+			description: customData.description,
+			status: "planning", // Default status for template-based projects
+			client_name: customData.client_name || "",
+			client_email: customData.client_email || "",
+			client_company: customData.client_company || "",
+			client_phone: customData.client_phone || "",
+			client_notes: customData.client_notes || ""
+		});
+		setIsCreateDialogOpen(true);
+	}
+
 	async function createProject() {
 		if (!newProject.name.trim()) {
-			toast.error("Project name is required");
+			toast.error("Validation Error", "Project name is required");
 			return;
 		}
 
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) {
-			toast.error("You must be logged in to create a project");
+			toast.error("Authentication Error", "You must be logged in to create a project");
 			setLoading(false);
 			return;
 		}
@@ -221,7 +239,7 @@ export default function ProjectsPage() {
 					.select()
 					.single();
 				if (clientError) {
-					toast.error("Failed to create client");
+					toast.error("Error", "Failed to create client");
 					setLoading(false);
 					return;
 				}
@@ -249,7 +267,7 @@ export default function ProjectsPage() {
 
 			if (error) {
 				console.error("Project creation error:", error);
-				toast.error(`Failed to create project: ${error.message}`);
+				toast.error("Error", `Failed to create project: ${error.message}`);
 				setLoading(false);
 				return;
 			}
@@ -265,10 +283,10 @@ export default function ProjectsPage() {
 
 			if (memberError) {
 				console.error("Member creation error:", memberError);
-				toast.error("Project created but failed to add you as a member");
+				toast.error("Warning", "Project created but failed to add you as a member");
 			}
 
-			toast.success("Project created successfully");
+			toast.success("Project Created", "Your project has been created successfully");
 			setNewProject({ 
 				name: "", 
 				description: "", 
@@ -284,7 +302,7 @@ export default function ProjectsPage() {
 			loadProjects();
 		} catch (error) {
 			console.error("Unexpected error:", error);
-			toast.error("An unexpected error occurred");
+			toast.error("Error", "An unexpected error occurred");
 			setLoading(false);
 		}
 	}
@@ -304,6 +322,10 @@ export default function ProjectsPage() {
 		}
 	};
 
+	if (loading && projects.length === 0) {
+		return <ProjectsSkeleton />;
+	}
+
 	return (
 		<div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 			{/* Header */}
@@ -318,13 +340,23 @@ export default function ProjectsPage() {
 							<CardDescription>Manage your freelance projects, collaborate with team members, and track progress.</CardDescription>
 						</div>
 
-						<Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-							<DialogTrigger asChild>
-								<Button className="w-full sm:w-auto">
-									<Plus className="h-4 w-4 mr-2" />
-									Create Project
-								</Button>
-							</DialogTrigger>
+						<div className="flex flex-col sm:flex-row gap-3">
+							<Button 
+								variant="outline" 
+								onClick={() => setIsTemplateSelectorOpen(true)}
+								className="w-full sm:w-auto"
+							>
+								<LayoutTemplate className="h-4 w-4 mr-2" />
+								Use Template
+							</Button>
+							
+							<Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+								<DialogTrigger asChild>
+									<Button className="w-full sm:w-auto">
+										<Plus className="h-4 w-4 mr-2" />
+										Create Project
+									</Button>
+								</DialogTrigger>
 							<DialogContent className="sm:max-w-md">
 								<DialogHeader>
 									<DialogTitle>Create New Project</DialogTitle>
@@ -458,11 +490,19 @@ export default function ProjectsPage() {
 										onClick={createProject} 
 										disabled={loading || !newProject.name.trim()}
 									>
-										{loading ? "Creating..." : "Create Project"}
+										{loading ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												Creating...
+											</>
+										) : (
+											"Create Project"
+										)}
 									</Button>
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
+						</div>
 					</div>
 				</CardHeader>
 			</Card>
@@ -580,6 +620,13 @@ export default function ProjectsPage() {
 					))}
 				</div>
 			)}
+
+			{/* Template Selector */}
+			<ProjectTemplateSelector
+				isOpen={isTemplateSelectorOpen}
+				onClose={() => setIsTemplateSelectorOpen(false)}
+				onSelectTemplate={handleTemplateSelect}
+			/>
 		</div>
 	);
 }

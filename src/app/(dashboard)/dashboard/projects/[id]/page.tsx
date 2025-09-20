@@ -32,6 +32,7 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import FileUpload from "@/components/file-upload";
+import { ProjectFinanceManager } from "@/components/project-finance/project-finance-manager";
 
 interface Project {
 	id: string;
@@ -458,11 +459,12 @@ export default function ProjectDetailPage() {
 
 			{/* Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-				<TabsList className="grid w-full grid-cols-5">
+				<TabsList className="grid w-full grid-cols-6">
 					<TabsTrigger value="overview">Overview</TabsTrigger>
 					<TabsTrigger value="tasks">Tasks</TabsTrigger>
 					<TabsTrigger value="members">Members</TabsTrigger>
 					<TabsTrigger value="files">Files</TabsTrigger>
+					<TabsTrigger value="finance">Finance</TabsTrigger>
 					<TabsTrigger value="chat">Chat</TabsTrigger>
 				</TabsList>
 
@@ -738,6 +740,11 @@ export default function ProjectDetailPage() {
 				{/* Files Tab */}
 				<TabsContent value="files" className="space-y-6">
 					<FileUpload projectId={projectId} onFileUploaded={loadProjectData} />
+				</TabsContent>
+
+				{/* Finance Tab */}
+				<TabsContent value="finance" className="space-y-6">
+					<ProjectFinanceManager projectId={projectId} projectName={project?.name || ''} />
 				</TabsContent>
 
 				{/* Chat Tab */}
