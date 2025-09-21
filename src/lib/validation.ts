@@ -36,6 +36,7 @@ export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   confirmPassword: z.string(),
+  fullName: z.string().min(1, "Full name is required").max(100, "Full name must be less than 100 characters"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],

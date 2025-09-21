@@ -17,6 +17,7 @@ export default function SignupPage() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
+	const [fullName, setFullName] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -29,7 +30,7 @@ export default function SignupPage() {
 		setErrors({});
 		
 		// Validate form data
-		const validation = validateForm(signupSchema, { email, password, confirmPassword });
+		const validation = validateForm(signupSchema, { email, password, confirmPassword, fullName });
 		if (!validation.success) {
 			setErrors(validation.errors || {});
 			return;
@@ -37,16 +38,47 @@ export default function SignupPage() {
 
 		setLoading(true);
 		try {
-			const { error } = await supabase.auth.signUp({ email, password });
-			if (error) {
-				toast.error("Signup Failed", error.message);
+			// Sign up the user
+			const { data: authData, error: authError } = await supabase.auth.signUp({ 
+				email, 
+				password,
+				options: {
+					data: {
+						full_name: fullName
+					}
+				}
+			});
+			
+			if (authError) {
+				toast.error("Signup Failed", authError.message);
 				return;
 			}
+
+			// If user was created successfully, create their profile
+			if (authData.user) {
+				const { error: profileError } = await supabase
+					.from("profiles")
+					.insert({
+						id: authData.user.id,
+						full_name: fullName,
+						email: email
+					});
+
+				if (profileError) {
+					console.error("Error creating profile:", profileError);
+					// Don't fail the signup if profile creation fails
+					toast.warning("Profile Creation Failed", "Account created but profile setup incomplete. You can complete it later.");
+				} else {
+					console.log("Profile created successfully for user:", authData.user.id);
+				}
+			}
+
 			toast.success("Account Created!", "Please check your email to confirm your account.");
 			router.push("/auth/login");
-	} catch {
-		toast.error("Signup Failed", "An unexpected error occurred. Please try again.");
-	} finally {
+		} catch (error) {
+			console.error("Signup error:", error);
+			toast.error("Signup Failed", "An unexpected error occurred. Please try again.");
+		} finally {
 			setLoading(false);
 		}
 	}
@@ -59,6 +91,21 @@ export default function SignupPage() {
 		>
 			<form onSubmit={onSignup} className="space-y-4">
 				<div className="space-y-2">
+					<Label htmlFor="fullName">Full Name</Label>
+					<Input 
+						id="fullName" 
+						type="text" 
+						value={fullName} 
+						onChange={(e) => setFullName(e.target.value)} 
+						className={errors.fullName ? "border-red-500" : ""}
+						placeholder="Enter your full name"
+						required 
+					/>
+					{errors.fullName && (
+						<p className="text-sm text-red-600">{errors.fullName[0]}</p>
+					)}
+				</div>
+				<div className="space-y-2">
 					<Label htmlFor="email">Email</Label>
 					<Input 
 						id="email" 
@@ -66,6 +113,7 @@ export default function SignupPage() {
 						value={email} 
 						onChange={(e) => setEmail(e.target.value)} 
 						className={errors.email ? "border-red-500" : ""}
+						placeholder="Enter your email"
 						required 
 					/>
 					{errors.email && (

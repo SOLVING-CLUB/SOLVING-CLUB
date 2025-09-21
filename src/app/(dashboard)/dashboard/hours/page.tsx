@@ -116,17 +116,52 @@ export default function HoursPage() {
 				setAvailabilityData(availabilityData || []);
 			}
 
-			// Load ALL team members (not just those with availability data)
-			const { data: membersData, error: membersError } = await supabase
+			// Load ALL team members from profiles table
+			console.log("Loading all team members from profiles table...");
+			const { data: allProfilesData, error: profilesError } = await supabase
 				.from("profiles")
 				.select("id, full_name, avatar_url")
 				.order("full_name", { ascending: true });
 
-			if (membersError) {
-				console.error("Error loading team members:", membersError);
+			if (profilesError) {
+				console.error("Error loading all profiles:", profilesError);
 			} else {
-				console.log("Loaded team members:", membersData?.length || 0, "members");
-				setTeamMembers(membersData || []);
+				console.log("Found", allProfilesData?.length || 0, "profiles in database");
+				console.log("Profile details:", allProfilesData);
+				
+				// Get users from availability data who might not have profiles
+				const userIdsFromAvailability = availabilityData ? 
+					[...new Set(availabilityData.map(a => a.user_id))] : [];
+				
+				// Add current user if not already included
+				if (!userIdsFromAvailability.includes(user.id)) {
+					userIdsFromAvailability.push(user.id);
+				}
+				
+				console.log("User IDs from availability data:", userIdsFromAvailability);
+				
+				// Create fallback entries for users without profiles
+				const membersWithProfiles = allProfilesData || [];
+				const membersWithProfileIds = new Set(membersWithProfiles.map(m => m.id));
+				
+				// Create fallback entries for users without profiles
+				const fallbackMembers = userIdsFromAvailability
+					.filter(id => !membersWithProfileIds.has(id))
+					.map(id => ({
+						id,
+						full_name: `User ${id.slice(0, 8)}`, // Use first 8 chars of UUID
+						avatar_url: null
+					}));
+				
+				// Note: Profile creation is now handled by database trigger
+				// This ensures all new users automatically get profiles
+				
+				const allMembers = [...membersWithProfiles, ...fallbackMembers];
+				console.log("Total members (with fallbacks):", allMembers.length);
+				console.log("Members with profiles:", membersWithProfiles.length);
+				console.log("Members without profiles (fallbacks):", fallbackMembers.length);
+				
+				setTeamMembers(allMembers);
 			}
 		} catch (error) {
 			console.error("Unexpected error:", error);
@@ -439,12 +474,12 @@ export default function HoursPage() {
 
 		const calendarBlock = (
 			<div className="rounded-lg p-1 sm:p-2 md:p-3 overflow-x-hidden">
-				<UiCalendar
-					mode="single"
-					numberOfMonths={1}
-					selected={selectedDate}
-					onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
-					month={calendarMonth}
+						<UiCalendar
+							mode="single"
+							numberOfMonths={1}
+							selected={selectedDate}
+							onSelect={(date) => { if (date) setSelectedDateByMember((prev) => ({ ...prev, [member.id]: date })); }}
+							month={calendarMonth}
 					onMonthChange={(d) => {
 						setCalendarMonth(d);
 						// keep the same day-of-month when month changes
@@ -452,7 +487,7 @@ export default function HoursPage() {
 						const candidate = new Date(d.getFullYear(), d.getMonth(), Math.min(currentDay, 28));
 						setSelectedDateByMember((prev) => ({ ...prev, [member.id]: candidate }));
 					}}
-					showOutsideDays={false}
+							showOutsideDays={false}
 					className="w-full p-2 sm:p-3 [--cell-size:clamp(28px,calc((100vw-2.5rem-48px)/7),40px)] sm:[--cell-size:28px] md:[--cell-size:36px]"
 					modifiers={{
 						availableMarked: availableMarkedDates,
@@ -460,14 +495,14 @@ export default function HoursPage() {
 						tentativeMarked: tentativeMarkedDates,
 						mixedMarked: mixedMarkedDates,
 					}}
-					modifiersClassNames={{
+							modifiersClassNames={{
 						availableMarked: "ring-1 ring-offset-0 ring-emerald-500 rounded-sm",
 						busyMarked: "ring-1 ring-offset-0 ring-red-500 rounded-sm",
 						tentativeMarked: "ring-1 ring-offset-0 ring-yellow-500 rounded-sm",
 						mixedMarked: "ring-1 ring-offset-0 ring-blue-500 rounded-sm",
-					}}
-				/>
-			</div>
+							}}
+						/>
+					</div>
 		);
 
 		const detailsBlock = (
@@ -527,7 +562,7 @@ export default function HoursPage() {
 							const duration = ((parseInt(availability.end_time.slice(0, 2)) + parseInt(availability.end_time.slice(3, 5)) / 60) -
 									(parseInt(availability.start_time.slice(0, 2)) + parseInt(availability.start_time.slice(3, 5)) / 60)).toFixed(1);
 
-							return (
+											return (
 								<div key={availability.id} className="rounded-lg bg-background border p-4 space-y-3 transition-colors hover:bg-accent/40">
 									<div className="flex items-start justify-between gap-3">
 										<div className="min-w-0 flex-1 space-y-2">
@@ -535,7 +570,7 @@ export default function HoursPage() {
 												<Badge className={`${getTypeBadgeClass(availability.availability_type)} shadow-sm` }>
 													{availability.availability_type.charAt(0).toUpperCase() + availability.availability_type.slice(1)}
 												</Badge>
-											</div>
+												</div>
 											<div className={`font-medium ${getAvailabilityStyle(availability.availability_type).title}`}>
 												{availability.title || 'Untitled'}
 											</div>
@@ -547,7 +582,7 @@ export default function HoursPage() {
 											{availability.notes && (
 												<div className="text-sm text-muted-foreground">
 													{availability.notes}
-												</div>
+									</div>
 											)}
 										</div>
 										{member.id === currentUserId && (
@@ -574,11 +609,11 @@ export default function HoursPage() {
 								</div>
 							);
 						})
-					)}
-				</div>
+								)}
+							</div>
 
-				{member.id === currentUserId && (
-					<div className="pt-2">
+						{member.id === currentUserId && (
+							<div className="pt-2">
 						<Button
 							size="default"
 							variant="outline"
@@ -615,7 +650,7 @@ export default function HoursPage() {
 				<div className="p-4 md:hidden space-y-6">
 					{calendarBlock}
 					<div className="h-px bg-border" />
-					<div className="space-y-4">
+										<div className="space-y-4">
 						{detailsBlock}
 					</div>
 				</div>
@@ -676,11 +711,11 @@ export default function HoursPage() {
 								/>
 							</div>
 							<div className="space-y-4">
-								<div>
+												<div>
 									<div className="text-sm text-muted-foreground">Selected date</div>
 									<div className="font-medium">
 										{allViewDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-									</div>
+												</div>
 								</div>
 								{membersWithData.length === 0 ? (
 									<div className="text-sm text-muted-foreground">No availability logged</div>
@@ -750,7 +785,7 @@ export default function HoursPage() {
 				{showAllByMember ? (
 					<CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
 						<div className="grid sm:grid-cols-[260px_1fr] gap-3 sm:gap-4 items-start">
-							<div>
+												<div>
 								<div className="text-sm text-muted-foreground mb-1">Member</div>
 								<Select value={memberFilterId} onValueChange={setMemberFilterId}>
 									<SelectTrigger>
@@ -762,11 +797,11 @@ export default function HoursPage() {
 										))}
 									</SelectContent>
 								</Select>
-							</div>
+												</div>
 							<div className="text-sm text-muted-foreground">
 								{selectedMember ? `Showing availability for ${selectedMember.full_name}` : "Select a member"}
-							</div>
-						</div>
+											</div>
+										</div>
 
 						{!selectedMember ? (
 							<div className="text-sm text-muted-foreground">No member selected.</div>
@@ -778,7 +813,7 @@ export default function HoursPage() {
 									<div key={d} className="rounded-lg border p-3">
 										<div className="text-sm font-medium mb-2">
 											{new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-										</div>
+							</div>
 										<div className="space-y-2">
 											{byDate[d].map((a) => {
 												const startTime = a.start_time.slice(0, 5);
@@ -788,14 +823,14 @@ export default function HoursPage() {
 														<div className="text-sm">
 															<span className="font-medium">{formatTime12(startTime)} – {formatTime12(endTime)}</span>
 															{a.title ? <span className="text-muted-foreground"> — {a.title}</span> : null}
-														</div>
+					</div>
 														<Badge className={getTypeBadgeClass(a.availability_type)}>
 															{a.availability_type.charAt(0).toUpperCase() + a.availability_type.slice(1)}
 														</Badge>
-													</div>
+				</div>
 												);
 											})}
-										</div>
+			</div>
 									</div>
 								))}
 							</div>
@@ -837,7 +872,7 @@ export default function HoursPage() {
 							<Button onClick={() => setIsAddAvailabilityOpen(true)} className="w-full sm:w-auto">
 										<Plus className="h-4 w-4 mr-2" />
 								Add Availability
-										</Button>
+									</Button>
 						</div>
 					</div>
 				</CardHeader>
@@ -884,10 +919,10 @@ export default function HoursPage() {
 			<Card className="rounded-lg sm:rounded-xl overflow-hidden">
 				<CardHeader className="pb-3 px-4 sm:px-6">
 					<div className="flex items-center justify-between">
-						<CardTitle className="text-lg flex items-center gap-2">
-							<Users className="h-5 w-5" />
+					<CardTitle className="text-lg flex items-center gap-2">
+						<Users className="h-5 w-5" />
 							Team Availability
-						</CardTitle>
+					</CardTitle>
 						<div className="flex items-center gap-2">
 							<Button size="sm" variant="outline" onClick={() => setCalendarMonth(new Date())}>Today</Button>
 						</div>
@@ -987,10 +1022,10 @@ export default function HoursPage() {
 												setIsAddAvailabilityOpen(true);
 											}}
 										>
-											<Plus className="h-4 w-4 mr-2" />
+								<Plus className="h-4 w-4 mr-2" />
 											Add Availability
-										</Button>
-									</div>
+							</Button>
+						</div>
 								</div>
 
 								{/* Desktop: two-column layout */}
@@ -1026,8 +1061,8 @@ export default function HoursPage() {
 										</div>
 									</div>
 								</div>
-							</div>
-						)}
+						</div>
+					)}
 					</div>
 					{/* Other elements removed per request */}
 					{/**
