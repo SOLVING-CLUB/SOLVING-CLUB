@@ -161,10 +161,13 @@ export default function HoursPage() {
 	}, [isAddAvailabilityOpen, newAvailabilityDate]);
 
 	useEffect(() => {
-		if (!memberFilterId && teamMembers.length > 0) {
+		// Auto-select current user if available, otherwise first team member
+		if (!memberFilterId && currentUserId) {
+			setMemberFilterId(currentUserId);
+		} else if (!memberFilterId && teamMembers.length > 0) {
 			setMemberFilterId(teamMembers[0].id);
 		}
-	}, [teamMembers, memberFilterId]);
+	}, [teamMembers, memberFilterId, currentUserId]);
 
 	function getPlannedDurationHours(): string {
 		const [sh, sm = "0"] = newAvailabilityStart.split(":");
@@ -508,7 +511,21 @@ export default function HoursPage() {
 					{memberAvailability.length === 0 ? (
 						<div className="text-center py-8">
 							<Clock className="h-12 w-12 mx-auto mb-3 opacity-40" />
-							<span className="text-sm text-muted-foreground">No availability logged</span>
+							<div className="text-sm text-muted-foreground mb-2">No availability logged</div>
+							<div className="text-xs text-muted-foreground mb-4">Click the + button to add your first availability</div>
+							{member.id === currentUserId && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => {
+										setNewAvailabilityDate(selectedDate);
+										setIsAddAvailabilityOpen(true);
+									}}
+								>
+									<Plus className="h-4 w-4 mr-2" />
+									Add Availability
+								</Button>
+							)}
 						</div>
 					) : (
 						memberAvailability.map((availability) => {
@@ -798,8 +815,13 @@ export default function HoursPage() {
 
 	// Compute selected member for the simplified view
 	const selectedMember = teamMembers.find((m) => m.id === memberFilterId);
+	
+	// Ensure current user is always in the team members list
+	const currentUserMember = teamMembers.find((m) => m.id === currentUserId);
+	const allMembers = currentUserMember ? teamMembers : [...teamMembers, { id: currentUserId, full_name: "You" } as TeamMember];
 
-	if (loading && availabilityData.length === 0) {
+	// Only show skeleton on initial load when we have no data at all
+	if (loading && availabilityData.length === 0 && teamMembers.length === 0) {
 		return <HoursSkeleton />;
 	}
 
@@ -889,8 +911,11 @@ export default function HoursPage() {
 									<SelectValue placeholder="Select a member" />
 								</SelectTrigger>
 								<SelectContent>
-									{teamMembers.map((m) => (
-										<SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+									{allMembers.map((m) => (
+										<SelectItem key={m.id} value={m.id}>
+											{m.id === currentUserId ? "👤 " : ""}{m.full_name}
+											{m.id === currentUserId ? " (You)" : ""}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -900,12 +925,116 @@ export default function HoursPage() {
 						</div>
 					</div>
 
-					{/* Only keep the member card view */}
+					{/* Always show calendar - either for selected member or current user */}
 					<div className="space-y-4 sm:space-y-6">
-						{selectedMember ? (
+						{loading && availabilityData.length === 0 ? (
+							// Show loading state with calendar
+							<div className="rounded-lg border bg-card shadow-sm">
+								<div className="p-4 border-b bg-card/60">
+									<div className="flex items-center gap-3">
+										<div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+											<Calendar className="h-5 w-5" />
+										</div>
+										<div>
+											<div className="font-medium">Loading...</div>
+											<div className="text-xs text-muted-foreground">Fetching availability data</div>
+										</div>
+									</div>
+								</div>
+								<div className="p-6">
+									<div className="animate-pulse space-y-4">
+										<div className="h-64 bg-muted/50 rounded-lg"></div>
+										<div className="h-32 bg-muted/30 rounded-lg"></div>
+									</div>
+								</div>
+							</div>
+						) : selectedMember ? (
 							renderMemberCard(selectedMember)
+						) : currentUserId ? (
+							// Show current user's calendar even if not in team members list
+							renderMemberCard({ id: currentUserId, full_name: "You" } as TeamMember)
 						) : (
-							<div className="text-sm text-muted-foreground">No members available.</div>
+							// Fallback: Show a generic calendar view
+							<div className="rounded-lg border bg-card shadow-sm">
+								<div className="p-4 border-b bg-card/60">
+									<div className="flex items-center gap-3">
+										<div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+											<Calendar className="h-5 w-5" />
+										</div>
+										<div>
+											<div className="font-medium">Calendar View</div>
+											<div className="text-xs text-muted-foreground">Select a member to view their availability</div>
+										</div>
+									</div>
+								</div>
+								
+								{/* Mobile: stacked calendar then details */}
+								<div className="p-4 md:hidden space-y-6">
+									<div className="rounded-lg p-1 sm:p-2 md:p-3 overflow-x-hidden">
+										<UiCalendar
+											mode="single"
+											numberOfMonths={1}
+											selected={new Date()}
+											onSelect={() => {}}
+											month={calendarMonth}
+											onMonthChange={setCalendarMonth}
+											showOutsideDays={false}
+											className="w-full p-2 sm:p-3 [--cell-size:clamp(28px,calc((100vw-2.5rem-48px)/7),40px)] sm:[--cell-size:28px] md:[--cell-size:36px]"
+										/>
+									</div>
+									<div className="h-px bg-border" />
+									<div className="text-center py-8">
+										<Calendar className="h-12 w-12 mx-auto mb-4 opacity-40" />
+										<div className="text-sm text-muted-foreground mb-2">No member selected</div>
+										<div className="text-xs text-muted-foreground mb-4">Select a member from the dropdown above to view their availability</div>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => {
+												setNewAvailabilityDate(new Date());
+												setIsAddAvailabilityOpen(true);
+											}}
+										>
+											<Plus className="h-4 w-4 mr-2" />
+											Add Availability
+										</Button>
+									</div>
+								</div>
+
+								{/* Desktop: two-column layout */}
+								<div className="hidden md:grid grid-cols-2 gap-8 p-6">
+									<div className="rounded-lg p-1 sm:p-2 md:p-3 overflow-x-hidden">
+										<UiCalendar
+											mode="single"
+											numberOfMonths={1}
+											selected={new Date()}
+											onSelect={() => {}}
+											month={calendarMonth}
+											onMonthChange={setCalendarMonth}
+											showOutsideDays={false}
+											className="w-full p-2 sm:p-3 [--cell-size:clamp(28px,calc((100vw-2.5rem-48px)/7),40px)] sm:[--cell-size:28px] md:[--cell-size:36px]"
+										/>
+									</div>
+									<div className="space-y-4">
+										<div className="text-center py-8">
+											<Calendar className="h-12 w-12 mx-auto mb-4 opacity-40" />
+											<div className="text-sm text-muted-foreground mb-2">No member selected</div>
+											<div className="text-xs text-muted-foreground mb-4">Select a member from the dropdown above to view their availability</div>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() => {
+													setNewAvailabilityDate(new Date());
+													setIsAddAvailabilityOpen(true);
+												}}
+											>
+												<Plus className="h-4 w-4 mr-2" />
+												Add Availability
+											</Button>
+										</div>
+									</div>
+								</div>
+							</div>
 						)}
 					</div>
 					{/* Other elements removed per request */}
@@ -916,20 +1045,6 @@ export default function HoursPage() {
 				</CardContent>
 			</Card>
 
-			{/* Floating Add button on mobile (commented out as per request) */}
-			{/**
-			{currentUserId && (
-				<Button
-					className="sm:hidden fixed bottom-20 right-5 h-12 w-12 rounded-full shadow-lg z-40"
-					onClick={() => {
-						setNewAvailabilityDate(new Date());
-						setIsAddAvailabilityOpen(true);
-					}}
-				>
-					<Plus className="h-5 w-5" />
-				</Button>
-			)}
-			*/}
  
 			{/* Add Availability Dialog */}
 			<Dialog open={isAddAvailabilityOpen} onOpenChange={setIsAddAvailabilityOpen}>
