@@ -116,23 +116,16 @@ export default function HoursPage() {
 				setAvailabilityData(availabilityData || []);
 			}
 
-			// Load team members
-			const userIds = [user.id];
-			if (availabilityData && availabilityData.length > 0) {
-				userIds.push(...availabilityData.map((a: CalendarAvailability) => a.user_id));
-			}
-			
-			const uniqueUserIds = [...new Set(userIds)];
-			
+			// Load ALL team members (not just those with availability data)
 			const { data: membersData, error: membersError } = await supabase
 				.from("profiles")
 				.select("id, full_name, avatar_url")
-				.in("id", uniqueUserIds)
 				.order("full_name", { ascending: true });
 
 			if (membersError) {
 				console.error("Error loading team members:", membersError);
 			} else {
+				console.log("Loaded team members:", membersData?.length || 0, "members");
 				setTeamMembers(membersData || []);
 			}
 		} catch (error) {
@@ -816,9 +809,8 @@ export default function HoursPage() {
 	// Compute selected member for the simplified view
 	const selectedMember = teamMembers.find((m) => m.id === memberFilterId);
 	
-	// Ensure current user is always in the team members list
-	const currentUserMember = teamMembers.find((m) => m.id === currentUserId);
-	const allMembers = currentUserMember ? teamMembers : [...teamMembers, { id: currentUserId, full_name: "You" } as TeamMember];
+	// All members are now loaded from the database, so we can use teamMembers directly
+	const allMembers = teamMembers;
 
 	// Only show skeleton on initial load when we have no data at all
 	if (loading && availabilityData.length === 0 && teamMembers.length === 0) {
