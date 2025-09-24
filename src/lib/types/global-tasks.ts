@@ -318,32 +318,4 @@ export interface GlobalTaskNotification {
   created_at: string;
 }
 
-// Export all types
-export type {
-  GlobalTaskCategory,
-  GlobalTaskTag,
-  GlobalTask,
-  GlobalTaskDependency,
-  GlobalTaskComment,
-  GlobalTaskTimeEntry,
-  GlobalTaskAttachment,
-  GlobalTaskReminder,
-  UserTaskPreferences,
-  CreateGlobalTaskData,
-  UpdateGlobalTaskData,
-  CreateGlobalTaskCategoryData,
-  CreateGlobalTaskTagData,
-  CreateGlobalTaskCommentData,
-  CreateGlobalTaskTimeEntryData,
-  CreateGlobalTaskReminderData,
-  GlobalTaskFilters,
-  GlobalTaskSortOptions,
-  GlobalTaskAnalytics,
-  GlobalTaskTimeAnalytics,
-  KanbanColumn,
-  KanbanBoard,
-  CalendarEvent,
-  GanttTask,
-  GanttChart,
-  GlobalTaskNotification,
-};
+// Note: All types above are already exported via their declarations.

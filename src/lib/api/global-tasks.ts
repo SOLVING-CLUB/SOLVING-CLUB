@@ -775,7 +775,7 @@ export async function getGlobalTaskAnalytics(): Promise<{ data: GlobalTaskAnalyt
     // Get basic task counts
     const { data: tasks, error: tasksError } = await supabase
       .from('global_tasks')
-      .select('status, priority, category_id, created_at, completed_at, actual_hours')
+      .select('status, priority, category_id, created_at, completed_at, actual_hours, due_date')
       .or(`created_by.eq.${user.user.id},assigned_to.eq.${user.user.id}`);
 
     if (tasksError) {

@@ -60,15 +60,26 @@ export function GlobalTaskSettings({
   const [loading, setLoading] = useState(false);
   
   // Preferences state
-  const [prefs, setPrefs] = useState({
-    default_view: preferences?.default_view || 'kanban',
-    default_priority: preferences?.default_priority || 'medium',
-    default_category_id: preferences?.default_category_id || '',
-    auto_archive_completed: preferences?.auto_archive_completed || true,
-    show_completed_tasks: preferences?.show_completed_tasks || false,
-    time_tracking_enabled: preferences?.time_tracking_enabled || true,
-    notifications_enabled: preferences?.notifications_enabled || true,
-    email_notifications: preferences?.email_notifications || false,
+  type PrefsState = {
+    default_view: 'kanban' | 'list' | 'calendar' | 'gantt';
+    default_priority: 'low' | 'medium' | 'high' | 'urgent';
+    default_category_id: string;
+    auto_archive_completed: boolean;
+    show_completed_tasks: boolean;
+    time_tracking_enabled: boolean;
+    notifications_enabled: boolean;
+    email_notifications: boolean;
+  };
+
+  const [prefs, setPrefs] = useState<PrefsState>({
+    default_view: (preferences?.default_view ?? 'kanban') as PrefsState['default_view'],
+    default_priority: (preferences?.default_priority ?? 'medium') as PrefsState['default_priority'],
+    default_category_id: preferences?.default_category_id ?? '',
+    auto_archive_completed: !!(preferences?.auto_archive_completed ?? true),
+    show_completed_tasks: !!(preferences?.show_completed_tasks ?? false),
+    time_tracking_enabled: !!(preferences?.time_tracking_enabled ?? true),
+    notifications_enabled: !!(preferences?.notifications_enabled ?? true),
+    email_notifications: !!(preferences?.email_notifications ?? false),
   });
 
   // Categories state

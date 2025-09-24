@@ -30,7 +30,7 @@ import {
 import { toast } from "@/lib/toast";
 import type { GlobalTask } from "@/lib/types/global-tasks";
 import { getGlobalTasks, updateGlobalTask } from "@/lib/api/global-tasks";
-import { createClient } from "@/lib/supabase/browser";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 interface TaskLinkingManagerProps {
   projectId: string;
@@ -65,7 +65,7 @@ export function TaskLinkingManager({
   const [selectedGlobalTask, setSelectedGlobalTask] = useState<string>('');
   const [selectedProjectTask, setSelectedProjectTask] = useState<string>('');
 
-  const supabase = createClient();
+  const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {
     loadProjectTasks();
@@ -159,10 +159,13 @@ export function TaskLinkingManager({
 
     setLoading(true);
     try {
-      const { error } = await updateGlobalTask(globalTaskId, {
-        project_id: null,
-        project_task_id: null
-      });
+      const { error } = await updateGlobalTask(
+        globalTaskId,
+        {
+          project_id: null,
+          project_task_id: null,
+        } as any
+      );
 
       if (error) throw error;
 
