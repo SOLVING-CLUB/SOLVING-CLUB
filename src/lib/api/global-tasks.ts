@@ -383,7 +383,15 @@ export async function createGlobalTaskCategory(categoryData: CreateGlobalTaskCat
       .single();
 
     if (error) {
-      console.error('Error creating global task category:', error);
+      console.error('Error creating global task category:', {
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        categoryData,
+        userId: user.user.id
+      });
       return { data: null, error };
     }
 

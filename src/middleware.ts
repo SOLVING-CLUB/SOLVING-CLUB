@@ -30,11 +30,16 @@ export async function middleware(request: NextRequest) {
 			},
 		});
 
-		await supabase.auth.getUser();
+		const { data: { user } } = await supabase.auth.getUser();
+		
+		// Redirect authenticated users away from auth pages to dashboard
+		if (user && request.nextUrl.pathname.startsWith('/auth')) {
+			return NextResponse.redirect(new URL('/dashboard', request.url));
+		}
 	}
 	return response;
 }
 
 export const config = {
-	matcher: ["/((?!_next/static|_next/image|favicon.ico|auth).*)"],
+	matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

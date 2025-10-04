@@ -38,7 +38,7 @@ export default function LoginPage() {
 				return;
 			}
 			toast.success("Welcome back!", "You've been successfully logged in.");
-			router.replace("/dashboard/profile");
+			router.replace("/dashboard");
 	} catch {
 		toast.error("Login Failed", "An unexpected error occurred. Please try again.");
 	} finally {
