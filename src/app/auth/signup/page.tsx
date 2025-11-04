@@ -39,6 +39,7 @@ export default function SignupPage() {
 		setLoading(true);
 		try {
 			// Sign up the user
+			// The database trigger should automatically create the profile
 			const { data: authData, error: authError } = await supabase.auth.signUp({ 
 				email, 
 				password,
@@ -50,24 +51,37 @@ export default function SignupPage() {
 			});
 			
 			if (authError) {
-				toast.error("Signup Failed", authError.message);
+				console.error("Signup error details:", {
+					message: authError.message,
+					status: authError.status,
+					name: authError.name
+				});
+				toast.error("Signup Failed", authError.message || "An error occurred during signup. Please try again.");
 				return;
 			}
 
-			// If user was created successfully, create their profile
+			// Create profile for the user
+			// Note: Database trigger is disabled to avoid transaction failures
+			// Frontend handles profile creation as primary method
 			if (authData.user) {
+				console.log("User created successfully:", authData.user.id);
+				
+				// Create profile using upsert (handles conflicts gracefully)
 				const { error: profileError } = await supabase
 					.from("profiles")
-					.insert({
+					.upsert({
 						id: authData.user.id,
 						full_name: fullName,
 						email: email
+					}, {
+						onConflict: 'id'
 					});
 
 				if (profileError) {
-					console.error("Error creating profile:", profileError);
-					// Don't fail the signup if profile creation fails
-					toast.warning("Profile Creation Failed", "Account created but profile setup incomplete. You can complete it later.");
+					console.error("Profile creation error:", profileError);
+					// Profile creation failed, but user account is created
+					// User can complete profile setup later
+					toast.warning("Profile Setup Incomplete", "Your account was created, but profile setup failed. You can complete it later.");
 				} else {
 					console.log("Profile created successfully for user:", authData.user.id);
 				}
@@ -76,8 +90,9 @@ export default function SignupPage() {
 			toast.success("Account Created!", "Please check your email to confirm your account.");
 			router.push("/auth/login");
 		} catch (error) {
-			console.error("Signup error:", error);
-			toast.error("Signup Failed", "An unexpected error occurred. Please try again.");
+			console.error("Unexpected signup error:", error);
+			const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred. Please try again.";
+			toast.error("Signup Failed", errorMessage);
 		} finally {
 			setLoading(false);
 		}
