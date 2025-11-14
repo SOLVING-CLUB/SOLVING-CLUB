@@ -1,5 +1,5 @@
 # Solving Club Dashboard 
-
+#Hello I m karthk
 Full-stack Next.js (App Router) + Supabase boilerplate for Learnings, Projects, Profiles, and Hours.
 
 ## Tech
