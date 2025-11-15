@@ -32,6 +32,7 @@ import {
 import { Link, useParams } from "wouter";
 import FileUpload from "@/components/file-upload";
 import { ProjectFinanceManager } from "@/components/project-finance/project-finance-manager";
+import { MeetingsList } from "@/components/meetings/meetings-list";
 
 interface Project {
 	id: string;
@@ -458,9 +459,10 @@ export default function ProjectDetailPage() {
 
 			{/* Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-				<TabsList className="grid w-full grid-cols-6">
+				<TabsList className="grid w-full grid-cols-7">
 					<TabsTrigger value="overview">Overview</TabsTrigger>
 					<TabsTrigger value="tasks">Tasks</TabsTrigger>
+					<TabsTrigger value="meetings">Meetings</TabsTrigger>
 					<TabsTrigger value="members">Members</TabsTrigger>
 					<TabsTrigger value="files">Files</TabsTrigger>
 					<TabsTrigger value="finance">Finance</TabsTrigger>
@@ -608,6 +610,20 @@ export default function ProjectDetailPage() {
 													/>
 												</div>
 											</div>
+											<div className="space-y-2">
+												<Label htmlFor="task-assigned">Assign To</Label>
+												<select
+													id="task-assigned"
+													className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+													value={newTask.assigned_to}
+													onChange={(e) => setNewTask(prev => ({ ...prev, assigned_to: e.target.value }))}
+												>
+													<option value="">Unassigned</option>
+													{members.map((m) => (
+														<option key={m.user_id} value={m.user_id}>{m.user.full_name || 'Unknown'}</option>
+													))}
+												</select>
+											</div>
 										</div>
 										<DialogFooter>
 											<Button variant="outline" onClick={() => setIsTaskDialogOpen(false)}>
@@ -692,6 +708,11 @@ export default function ProjectDetailPage() {
 							</div>
 						</CardContent>
 					</Card>
+				</TabsContent>
+
+				{/* Meetings Tab */}
+				<TabsContent value="meetings" className="space-y-6">
+					<MeetingsList projectId={projectId} />
 				</TabsContent>
 
 				{/* Members Tab */}

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/theme-toggle";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare } from "lucide-react";
 
 export const nav = [
@@ -17,8 +18,7 @@ export const nav = [
 ];
 
 export default function Sidebar() {
-	const pathname = useLocation();
-	const router = useLocation();
+	const [location, setLocation] = useLocation();
 	const supabase = getSupabaseClient();
 
 	async function onLogout() {
@@ -47,6 +47,9 @@ export default function Sidebar() {
 				))}
 			</nav>
 			<div className="mt-4 pt-2 space-y-2 border-t">
+				<div className="flex justify-center">
+					<NotificationCenter />
+				</div>
 				<div className="flex justify-center">
 					<ThemeToggle />
 				</div>
