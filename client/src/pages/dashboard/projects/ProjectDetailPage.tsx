@@ -27,7 +27,8 @@ import {
 	UserPlus,
 	Send,
 	MoreVertical,
-	User
+	User,
+	Video
 } from "lucide-react";
 import { Link, useParams } from "wouter";
 import FileUpload from "@/components/file-upload";
@@ -442,6 +443,12 @@ export default function ProjectDetailPage() {
 							)}
 						</div>
 						<div className="flex items-center gap-2">
+							<Link href={`/dashboard/meetings/create?project=${projectId}`}>
+								<Button variant="default" size="sm">
+									<Video className="h-4 w-4 mr-2" />
+									Start Meeting
+								</Button>
+							</Link>
 							<Button variant="outline" size="sm">
 								<UserPlus className="h-4 w-4 mr-2" />
 								Invite Members

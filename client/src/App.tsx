@@ -21,6 +21,39 @@ import HoursPage from "@/pages/dashboard/HoursPage";
 import LearningsPage from "@/pages/dashboard/LearningsPage";
 import FinancialPage from "@/pages/dashboard/FinancialPage";
 import GlobalTasksPage from "@/pages/dashboard/GlobalTasksPage";
+// Lazy load meeting pages to prevent blocking on import errors
+import { lazy, Suspense } from "react";
+
+const ErrorFallback = ({ error }: { error?: Error }) => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center p-6">
+      <p className="text-lg font-semibold mb-2">Meetings feature unavailable</p>
+      <p className="text-muted-foreground mb-2">Please ensure the database schema is set up and dependencies are installed.</p>
+      {error && (
+        <p className="text-sm text-red-500 mt-2 font-mono">{error.message}</p>
+      )}
+    </div>
+  </div>
+);
+
+const MeetingsPage = lazy(() => 
+  import("@/pages/dashboard/meetings/MeetingsPage").catch((err) => { 
+    console.error('Failed to load MeetingsPage:', err);
+    return { default: () => <ErrorFallback error={err} /> };
+  })
+);
+const CreateMeetingPage = lazy(() => 
+  import("@/pages/dashboard/meetings/CreateMeetingPage").catch((err) => { 
+    console.error('Failed to load CreateMeetingPage:', err);
+    return { default: () => <ErrorFallback error={err} /> };
+  })
+);
+const MeetingRoomPage = lazy(() => 
+  import("@/pages/dashboard/meetings/MeetingRoomPage").catch((err) => { 
+    console.error('Failed to load MeetingRoomPage:', err);
+    return { default: () => <ErrorFallback error={err} /> };
+  })
+);
 
 // Protected Route Wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -157,6 +190,28 @@ function App() {
         <Route path="/dashboard/global-tasks">
           <ProtectedRoute>
             <GlobalTasksPage />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/dashboard/meetings">
+          <ProtectedRoute>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading meetings...</div>}>
+              <MeetingsPage />
+            </Suspense>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/dashboard/meetings/create">
+          <ProtectedRoute>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+              <CreateMeetingPage />
+            </Suspense>
+          </ProtectedRoute>
+        </Route>
+        {/* Meeting room is full-screen, no DashboardFrame */}
+        <Route path="/dashboard/meetings/:id">
+          <ProtectedRoute>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Joining meeting...</div>}>
+              <MeetingRoomPage />
+            </Suspense>
           </ProtectedRoute>
         </Route>
         

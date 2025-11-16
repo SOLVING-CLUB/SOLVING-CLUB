@@ -1,3 +1,8 @@
+// Polyfill for Node.js global in browser environment
+if (typeof global === 'undefined') {
+  (window as any).global = globalThis;
+}
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

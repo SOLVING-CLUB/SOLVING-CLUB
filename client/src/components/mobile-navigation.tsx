@@ -15,7 +15,8 @@ import {
 	LogOut,
 	Bell,
 	Search,
-	DollarSign
+	DollarSign,
+	Video
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const navigation = [
 	{ name: "Hours", href: "/dashboard/hours", icon: Clock },
 	{ name: "Learnings", href: "/dashboard/learnings", icon: BookOpen },
 	{ name: "Projects", href: "/dashboard/projects", icon: FolderOpen },
+	{ name: "Meetings", href: "/dashboard/meetings", icon: Video },
 	{ name: "Financial", href: "/dashboard/financial", icon: DollarSign },
 ];
 

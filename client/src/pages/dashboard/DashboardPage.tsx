@@ -26,7 +26,8 @@ import {
 	AlertCircle,
 	Star,
 	Target,
-	Zap
+	Zap,
+	Video
 } from "lucide-react";
 
 interface DashboardStats {
@@ -56,6 +57,7 @@ const quickActions = [
 	{ title: "Log Hours", href: "/dashboard/hours", icon: Clock, description: "Track your availability" },
 	{ title: "Add Learning", href: "/dashboard/learnings", icon: BookOpen, description: "Save new resources" },
 	{ title: "New Project", href: "/dashboard/projects", icon: FolderOpen, description: "Create workspace" },
+	{ title: "New Meeting", href: "/dashboard/meetings/create", icon: Video, description: "Start video meeting" },
 	{ title: "Update Profile", href: "/dashboard/profile", icon: User, description: "Edit your info" }
 ];
 
@@ -184,20 +186,22 @@ export default function DashboardHome() {
 	return (
 		<div className="min-h-screen bg-background">
 			{/* Mobile Header */}
-			<MobilePageHeader
-				title="Dashboard"
-				description="Welcome back! Here's what's happening with your projects."
-				actions={
-					<div className="flex gap-2">
-						<Button size="sm" variant="ghost" className="lg:hidden">
-							<Bell className="h-4 w-4" />
-						</Button>
-						<Button size="sm" variant="ghost" className="lg:hidden">
-							<Settings className="h-4 w-4" />
-						</Button>
-					</div>
-				}
-			/>
+			<div className="lg:hidden">
+				<MobilePageHeader
+					title="Dashboard"
+					description="Welcome back! Here's what's happening with your projects."
+					actions={
+						<div className="flex gap-2">
+							<Button size="sm" variant="ghost" className="lg:hidden">
+								<Bell className="h-4 w-4" />
+							</Button>
+							<Button size="sm" variant="ghost" className="lg:hidden">
+								<Settings className="h-4 w-4" />
+							</Button>
+						</div>
+					}
+				/>
+			</div>
 
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 lg:space-y-6">
 				{/* Desktop Header */}

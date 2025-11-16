@@ -4,12 +4,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/theme-toggle";
-import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare } from "lucide-react";
+import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare, Video } from "lucide-react";
 
 export const nav = [
 	{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 	{ href: "/dashboard/learnings", label: "Learnings", icon: BookOpen },
 	{ href: "/dashboard/projects", label: "Projects", icon: Briefcase },
+	{ href: "/dashboard/meetings", label: "Meetings", icon: Video },
 	{ href: "/dashboard/global-tasks", label: "Global Tasks", icon: CheckSquare },
 	{ href: "/dashboard/financial", label: "Financial", icon: DollarSign },
 	{ href: "/dashboard/profile", label: "Profile", icon: User },
