@@ -85,6 +85,7 @@ create table if not exists public.projects (
 	id uuid primary key default gen_random_uuid(),
 	name text not null,
 	description text,
+	meeting_link text,
 	status text not null default 'planning' check (status in ('planning', 'active', 'completed', 'on-hold')),
 	owner_id uuid references auth.users(id) on delete cascade not null,
 	client_name text,
@@ -102,6 +103,7 @@ alter table public.projects add column if not exists client_email text;
 alter table public.projects add column if not exists client_company text;
 alter table public.projects add column if not exists client_phone text;
 alter table public.projects add column if not exists client_notes text;
+alter table public.projects add column if not exists meeting_link text;
 
 -- Project members table
 create table if not exists public.project_members (
@@ -196,12 +198,76 @@ create policy "Users can manage their clients" on public.clients
 -- Link projects to clients
 alter table public.projects add column if not exists client_id uuid references public.clients(id) on delete set null;
 
+-- Project meetings table
+create table if not exists public.project_meetings (
+	id uuid primary key default gen_random_uuid(),
+	project_id uuid references public.projects(id) on delete cascade not null,
+	title text not null,
+	scheduled_at timestamptz not null,
+	duration_minutes integer not null default 60,
+	meeting_link text not null,
+	notes text,
+	created_by uuid references auth.users(id) on delete cascade not null,
+	created_at timestamptz default now(),
+	updated_at timestamptz default now()
+);
+
+-- Project meeting participants table
+create table if not exists public.project_meeting_participants (
+	id uuid primary key default gen_random_uuid(),
+	meeting_id uuid references public.project_meetings(id) on delete cascade not null,
+	user_id uuid references auth.users(id) on delete cascade not null,
+	role text not null default 'participant' check (role in ('host', 'participant')),
+	created_at timestamptz default now(),
+	unique (meeting_id, user_id)
+);
+
+-- Trigger for project meetings
+create or replace trigger project_meetings_set_updated_at
+before update on public.project_meetings
+for each row execute function public.set_updated_at();
+
+-- Helper function to detect meeting conflicts
+create or replace function public.get_meeting_conflicts(
+	p_project_id uuid,
+	p_participant_ids uuid[],
+	p_start timestamptz,
+	p_end timestamptz
+)
+returns table (
+	participant_id uuid,
+	participant_name text,
+	meeting_id uuid,
+	meeting_title text,
+	scheduled_at timestamptz,
+	duration_minutes integer
+) as $$
+begin
+	return query
+	select
+		p.user_id as participant_id,
+		profiles.full_name as participant_name,
+		m.id as meeting_id,
+		m.title as meeting_title,
+		m.scheduled_at,
+		m.duration_minutes
+	from public.project_meetings m
+	join public.project_meeting_participants p on p.meeting_id = m.id
+	left join public.profiles on profiles.id = p.user_id
+	where
+		m.project_id = p_project_id
+		and p.user_id = any(p_participant_ids)
+		and m.scheduled_at < p_end
+		and (m.scheduled_at + (m.duration_minutes * interval '1 minute')) > p_start;
+end;
+$$ language plpgsql security definer;
+
 -- Projects policies
 drop policy if exists "Users can view projects they own or are members of" on public.projects;
 create policy "Users can view projects they own or are members of" on public.projects
 	for select using (
-		auth.uid() = owner_id or 
-		auth.uid() in (select user_id from public.project_members where project_id = id)
+		-- Keep this non-recursive: only reference columns on this table
+		auth.uid() = owner_id
 	);
 
 drop policy if exists "Users can create projects" on public.projects;
@@ -211,6 +277,16 @@ create policy "Users can create projects" on public.projects
 drop policy if exists "Project owners can update projects" on public.projects;
 create policy "Project owners can update projects" on public.projects
 	for update using (auth.uid() = owner_id);
+
+drop policy if exists "Project members can update projects" on public.projects;
+create policy "Project members can update projects" on public.projects
+	for update using (
+		auth.uid() = owner_id or 
+		auth.uid() in (select user_id from public.project_members where project_id = id)
+	) with check (
+		auth.uid() = owner_id or 
+		auth.uid() in (select user_id from public.project_members where project_id = id)
+	);
 
 drop policy if exists "Project owners can delete projects" on public.projects;
 create policy "Project owners can delete projects" on public.projects
@@ -301,6 +377,70 @@ create policy "Project members can upload files" on public.project_files
 			select user_id from public.project_members where project_id = project_files.project_id
 			union
 			select owner_id from public.projects where id = project_files.project_id
+		)
+	);
+
+-- Project meetings policies
+drop policy if exists "Users can view meetings in their projects" on public.project_meetings;
+create policy "Users can view meetings in their projects" on public.project_meetings
+	for select using (
+		auth.uid() in (
+			select user_id from public.project_members where project_id = project_meetings.project_id
+			union
+			select owner_id from public.projects where id = project_meetings.project_id
+		)
+	);
+
+drop policy if exists "Project members can create meetings" on public.project_meetings;
+create policy "Project members can create meetings" on public.project_meetings
+	for insert with check (
+		auth.uid() = created_by and
+		auth.uid() in (
+			select user_id from public.project_members where project_id = project_meetings.project_id
+			union
+			select owner_id from public.projects where id = project_meetings.project_id
+		)
+	);
+
+drop policy if exists "Project members can update meetings" on public.project_meetings;
+create policy "Project members can update meetings" on public.project_meetings
+	for update using (
+		auth.uid() in (
+			select user_id from public.project_members where project_id = project_meetings.project_id
+			union
+			select owner_id from public.projects where id = project_meetings.project_id
+		)
+	);
+
+drop policy if exists "Meeting creators or project owners can delete meetings" on public.project_meetings;
+create policy "Meeting creators or project owners can delete meetings" on public.project_meetings
+	for delete using (
+		auth.uid() = created_by or
+		auth.uid() = (select owner_id from public.projects where id = project_meetings.project_id)
+	);
+
+-- Project meeting participants policies
+drop policy if exists "Users can view meeting participants in their projects" on public.project_meeting_participants;
+create policy "Users can view meeting participants in their projects" on public.project_meeting_participants
+	for select using (
+		auth.uid() in (
+			select user_id from public.project_members 
+			where project_id = (select project_id from public.project_meetings where id = project_meeting_participants.meeting_id)
+			union
+			select owner_id from public.projects 
+			where id = (select project_id from public.project_meetings where id = project_meeting_participants.meeting_id)
+		)
+	);
+
+drop policy if exists "Project members can manage meeting participants" on public.project_meeting_participants;
+create policy "Project members can manage meeting participants" on public.project_meeting_participants
+	for all using (
+		auth.uid() in (
+			select user_id from public.project_members 
+			where project_id = (select project_id from public.project_meetings where id = project_meeting_participants.meeting_id)
+			union
+			select owner_id from public.projects 
+			where id = (select project_id from public.project_meetings where id = project_meeting_participants.meeting_id)
 		)
 	);
 

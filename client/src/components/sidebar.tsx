@@ -4,13 +4,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/theme-toggle";
-import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare, Video } from "lucide-react";
+import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare } from "lucide-react";
 
 export const nav = [
 	{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 	{ href: "/dashboard/learnings", label: "Learnings", icon: BookOpen },
 	{ href: "/dashboard/projects", label: "Projects", icon: Briefcase },
-	{ href: "/dashboard/meetings", label: "Meetings", icon: Video },
 	{ href: "/dashboard/global-tasks", label: "Global Tasks", icon: CheckSquare },
 	{ href: "/dashboard/financial", label: "Financial", icon: DollarSign },
 	{ href: "/dashboard/profile", label: "Profile", icon: User },
@@ -18,8 +17,8 @@ export const nav = [
 ];
 
 export default function Sidebar() {
-	const pathname = useLocation();
-	const router = useLocation();
+	const [pathname] = useLocation();
+	const [, setLocation] = useLocation();
 	const supabase = getSupabaseClient();
 
 	async function onLogout() {
@@ -37,7 +36,7 @@ export default function Sidebar() {
 						className={cn(
 							"flex items-center rounded-lg py-2.5 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground",
 							"justify-center group-hover:justify-start px-0 group-hover:px-3 gap-0 group-hover:gap-3",
-							location === item.href && "bg-accent text-accent-foreground"
+							pathname === item.href && "bg-accent text-accent-foreground"
 						)}
 					>
 						<item.icon className="h-4 w-4 shrink-0" />

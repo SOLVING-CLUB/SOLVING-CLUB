@@ -11,3 +11,5 @@ export function getSupabaseClient(): SupabaseClient {
 	return cachedClient;
 }
 
+export const supabase = getSupabaseClient();
+

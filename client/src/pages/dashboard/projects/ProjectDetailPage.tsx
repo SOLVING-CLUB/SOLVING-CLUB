@@ -30,6 +30,7 @@ import {
 	User,
 	Video
 } from "lucide-react";
+import { ProjectMeetingsTab } from "@/components/project-meetings/ProjectMeetingsTab";
 import { Link, useParams } from "wouter";
 import FileUpload from "@/components/file-upload";
 import { ProjectFinanceManager } from "@/components/project-finance/project-finance-manager";
@@ -38,6 +39,7 @@ interface Project {
 	id: string;
 	name: string;
 	description: string;
+	meeting_link?: string | null;
 	    status: 'planning' | 'active' | 'completed' | 'on-hold';
 	created_at: string;
 	updated_at: string;
@@ -443,12 +445,21 @@ export default function ProjectDetailPage() {
 							)}
 						</div>
 						<div className="flex items-center gap-2">
-							<Link href={`/dashboard/meetings/create?project=${projectId}`}>
-								<Button variant="default" size="sm">
-									<Video className="h-4 w-4 mr-2" />
-									Start Meeting
+							{project.meeting_link ? (
+								<Button asChild variant="default" size="sm">
+									<a href={project.meeting_link} target="_blank" rel="noreferrer">
+										<Video className="h-4 w-4 mr-2" />
+										Join Meeting
+									</a>
 								</Button>
-							</Link>
+							) : (
+								<Link href={`/dashboard/projects/${projectId}/settings`}>
+									<Button variant="outline" size="sm">
+										<Video className="h-4 w-4 mr-2" />
+										Add meeting link
+									</Button>
+								</Link>
+							)}
 							<Button variant="outline" size="sm">
 								<UserPlus className="h-4 w-4 mr-2" />
 								Invite Members
@@ -465,12 +476,13 @@ export default function ProjectDetailPage() {
 
 			{/* Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-				<TabsList className="grid w-full grid-cols-6">
+				<TabsList className="grid w-full grid-cols-7">
 					<TabsTrigger value="overview">Overview</TabsTrigger>
 					<TabsTrigger value="tasks">Tasks</TabsTrigger>
 					<TabsTrigger value="members">Members</TabsTrigger>
 					<TabsTrigger value="files">Files</TabsTrigger>
 					<TabsTrigger value="finance">Finance</TabsTrigger>
+					<TabsTrigger value="meetings">Meetings</TabsTrigger>
 					<TabsTrigger value="chat">Chat</TabsTrigger>
 				</TabsList>
 
@@ -699,6 +711,11 @@ export default function ProjectDetailPage() {
 							</div>
 						</CardContent>
 					</Card>
+				</TabsContent>
+
+				{/* Meetings Tab */}
+				<TabsContent value="meetings" className="space-y-6">
+					<ProjectMeetingsTab projectId={projectId} />
 				</TabsContent>
 
 				{/* Members Tab */}

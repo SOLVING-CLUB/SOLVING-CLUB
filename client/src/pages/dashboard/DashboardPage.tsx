@@ -26,8 +26,7 @@ import {
 	AlertCircle,
 	Star,
 	Target,
-	Zap,
-	Video
+	Zap
 } from "lucide-react";
 
 interface DashboardStats {
@@ -57,7 +56,6 @@ const quickActions = [
 	{ title: "Log Hours", href: "/dashboard/hours", icon: Clock, description: "Track your availability" },
 	{ title: "Add Learning", href: "/dashboard/learnings", icon: BookOpen, description: "Save new resources" },
 	{ title: "New Project", href: "/dashboard/projects", icon: FolderOpen, description: "Create workspace" },
-	{ title: "New Meeting", href: "/dashboard/meetings/create", icon: Video, description: "Start video meeting" },
 	{ title: "Update Profile", href: "/dashboard/profile", icon: User, description: "Edit your info" }
 ];
 
@@ -151,10 +149,7 @@ export default function DashboardHome() {
 			}
 
 			// Set upcoming events (placeholder for now)
-			setUpcomingEvents([
-				{ id: "1", title: "Team Standup", time: "Today, 9:00 AM", type: "meeting" },
-				{ id: "2", title: "Project Review", time: "Tomorrow, 2:00 PM", type: "meeting" },
-			]);
+			setUpcomingEvents([]);
 
 		} catch (error) {
 			console.error("Error loading dashboard data:", error);
@@ -390,7 +385,7 @@ export default function DashboardHome() {
 										<div className="text-center py-8 text-muted-foreground">
 											<Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
 											<p>No upcoming events</p>
-											<p className="text-sm mt-1">Schedule meetings or set deadlines</p>
+											<p className="text-sm mt-1">Set deadlines or create tasks</p>
 										</div>
 									)}
 								</div>

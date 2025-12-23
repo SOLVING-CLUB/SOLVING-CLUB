@@ -45,9 +45,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to your camera for video meetings.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs access to your microphone for video meetings.</string>
 </dict>
 </plist>
