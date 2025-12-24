@@ -27,6 +27,7 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 	const [meetings, setMeetings] = useState<ProjectMeetingWithParticipants[]>([]);
 	const [members, setMembers] = useState<Member[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
 	const [isScheduleOpen, setIsScheduleOpen] = useState(false);
 	const [title, setTitle] = useState("");
@@ -43,8 +44,16 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 	const [editingNotesValue, setEditingNotesValue] = useState("");
 
 	useEffect(() => {
+		loadCurrentUser();
 		loadData();
 	}, [projectId]);
+
+	async function loadCurrentUser() {
+		const { data: { user } } = await supabase.auth.getUser();
+		if (user) {
+			setCurrentUserId(user.id);
+		}
+	}
 
 	async function loadData() {
 		setLoading(true);
@@ -102,10 +111,22 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 
 	const now = new Date();
 	const { upcoming, past } = useMemo(() => {
+		// Filter meetings to only include those where the current user is explicitly a participant
+		// Only show meetings where the user is in the participants list
+		const userMeetings = currentUserId
+			? meetings.filter((m) => {
+				// Ensure participants array exists and contains the current user
+				return m.participants && 
+				       Array.isArray(m.participants) && 
+				       m.participants.length > 0 &&
+				       m.participants.some((p) => p.user_id === currentUserId);
+			})
+			: [];
+
 		const upcomingMeetings: ProjectMeetingWithParticipants[] = [];
 		const pastMeetings: ProjectMeetingWithParticipants[] = [];
 
-		for (const m of meetings) {
+		for (const m of userMeetings) {
 			if (new Date(m.scheduled_at) >= now) {
 				upcomingMeetings.push(m);
 			} else {
@@ -117,7 +138,7 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 		pastMeetings.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
 
 		return { upcoming: upcomingMeetings, past: pastMeetings };
-	}, [meetings, now]);
+	}, [meetings, now, currentUserId]);
 
 	const upcomingCount = upcoming.length;
 	const pastCount = past.length;
@@ -184,6 +205,11 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 		setSaving(true);
 		try {
 			await checkConflicts();
+			// Ensure the current user is included as a participant
+			const participantIdsSet = new Set(selectedParticipantIds);
+			if (currentUserId) {
+				participantIdsSet.add(currentUserId);
+			}
 			await createProjectMeeting({
 				project_id: projectId,
 				title: title.trim(),
@@ -191,7 +217,7 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 				duration_minutes: duration,
 				meeting_link: meetingLink.trim(),
 				notes: notes.trim() || undefined,
-				participant_ids: selectedParticipantIds,
+				participant_ids: Array.from(participantIdsSet),
 			});
 
 			toast.success("Meeting scheduled", "Your meeting has been created");
@@ -310,10 +336,10 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 								<div className="space-y-2">
 									<Label>Participants</Label>
 									<div className="flex flex-wrap gap-2">
-										{members.length === 0 && (
+										{members.filter((m) => m.id !== currentUserId).length === 0 && (
 											<p className="text-xs text-muted-foreground">No members found for this project.</p>
 										)}
-										{members.map((m) => {
+										{members.filter((m) => m.id !== currentUserId).map((m) => {
 											const selected = selectedParticipantIds.includes(m.id);
 											const conflicted = conflictWarnings.some((msg) =>
 												msg.toLowerCase().includes((m.full_name || "").toLowerCase()),

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "@/lib/toast";
 import { ProjectsSkeleton } from "@/components/ui/loading-states";
-import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye, Loader2, LayoutTemplate, Video } from "lucide-react";
+import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye, Loader2, LayoutTemplate } from "lucide-react";
 import { Link } from "wouter";
 import { ProjectTemplateSelector } from "@/components/project-template-selector";
 import { ProjectTemplate } from "@/lib/project-templates";
@@ -19,7 +19,6 @@ interface Project {
 	id: string;
 	name: string;
 	description: string;
-	meeting_link?: string | null;
 	status: 'planning' | 'active' | 'completed' | 'on-hold';
 	created_at: string;
 	updated_at: string;
@@ -41,7 +40,6 @@ type MemberProjectsRow = {
 type NewProject = {
 	name: string;
 	description: string;
-	meeting_link?: string;
 	status: Project['status'];
 	client_name?: string;
 	client_email?: string;
@@ -62,7 +60,6 @@ type Client = {
 type InsertProjectPayload = {
 	name: string;
 	description: string;
-	meeting_link: string | null;
 	status: Project['status'];
 	owner_id: string;
 	client_id: string | null;
@@ -86,7 +83,6 @@ export default function ProjectsPage() {
 	const [newProject, setNewProject] = useState<NewProject>({
 		name: "",
 		description: "",
-		meeting_link: "",
 		status: "planning",
 		client_name: "",
 		client_email: "",
@@ -200,7 +196,6 @@ export default function ProjectsPage() {
 		setNewProject({
 			name: customData.name,
 			description: customData.description,
-			meeting_link: "",
 			status: "planning", // Default status for template-based projects
 			client_name: customData.client_name || "",
 			client_email: customData.client_email || "",
@@ -254,7 +249,6 @@ export default function ProjectsPage() {
 			const payload: InsertProjectPayload = {
 				name: newProject.name,
 				description: newProject.description,
-				meeting_link: newProject.meeting_link?.trim() ? newProject.meeting_link.trim() : null,
 				status: newProject.status,
 				owner_id: user.id,
 				client_id: clientIdToUse,
@@ -296,7 +290,6 @@ export default function ProjectsPage() {
 			setNewProject({ 
 				name: "", 
 				description: "", 
-				meeting_link: "",
 				status: "planning",
 				client_name: "",
 				client_email: "",
@@ -404,17 +397,6 @@ export default function ProjectsPage() {
 											<option value="completed">Completed</option>
 											<option value="on-hold">On Hold</option>
 										</select>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="project-meeting-link">Meeting link</Label>
-										<Input
-											id="project-meeting-link"
-											type="url"
-											placeholder="https://example.com/meeting"
-											value={newProject.meeting_link}
-											onChange={(e) => setNewProject(prev => ({ ...prev, meeting_link: e.target.value }))}
-										/>
-										<p className="text-xs text-muted-foreground">Optional link to your project’s recurring meeting room.</p>
 									</div>
 									{/* Client selection */}
 									<div className="space-y-2 pt-2">
@@ -625,21 +607,8 @@ export default function ProjectsPage() {
 										<Button variant="outline" size="sm" className="w-full">
 											<MessageSquare className="h-4 w-4 mr-2" />
 											View Project
-										</Button>
-									</Link>
-							{project.meeting_link && (
-								<Button
-									variant="default"
-									size="sm"
-									asChild
-									className="w-auto"
-								>
-									<a href={project.meeting_link} target="_blank" rel="noreferrer">
-										<Video className="h-4 w-4 mr-2" />
-										Join
-									</a>
-								</Button>
-							)}
+									</Button>
+								</Link>
 									<Link href={`/dashboard/projects/${project.id}/settings`}>
 										<Button variant="outline" size="sm">
 											<Settings className="h-4 w-4" />

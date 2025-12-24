@@ -22,7 +22,6 @@ interface Project {
 	id: string;
 	name: string;
 	description: string;
-	meeting_link?: string | null;
 	    status: 'planning' | 'active' | 'completed' | 'on-hold';
 	owner_id: string;
 	client_name?: string;
@@ -60,11 +59,10 @@ export default function ProjectSettingsPage() {
 	
 	// Project settings form
 	type ProjectStatus = 'planning' | 'active' | 'completed' | 'on-hold';
-	type ProjectSettings = { name: string; description: string; meeting_link?: string; status: ProjectStatus; client_name?: string; client_email?: string; client_company?: string; client_phone?: string; client_notes?: string };
+	type ProjectSettings = { name: string; description: string; status: ProjectStatus; client_name?: string; client_email?: string; client_company?: string; client_phone?: string; client_notes?: string };
 	const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
 		name: "",
 		description: "",
-		meeting_link: "",
 		status: "planning",
 		client_name: "",
 		client_email: "",
@@ -99,7 +97,6 @@ export default function ProjectSettingsPage() {
 		setProjectSettings({
 			name: projectData.name,
 			description: projectData.description || "",
-			meeting_link: projectData.meeting_link || "",
 			status: projectData.status as ProjectStatus,
 			client_name: projectData.client_name || "",
 			client_email: projectData.client_email || "",
@@ -179,7 +176,6 @@ export default function ProjectSettingsPage() {
 			.update({
 				name: projectSettings.name,
 				description: projectSettings.description,
-				meeting_link: projectSettings.meeting_link?.trim() ? projectSettings.meeting_link.trim() : null,
 				status: projectSettings.status,
 				client_name: projectSettings.client_name || null,
 				client_email: projectSettings.client_email || null,
@@ -428,17 +424,6 @@ export default function ProjectSettingsPage() {
 								onChange={(e) => setProjectSettings(prev => ({ ...prev, description: e.target.value }))}
 								rows={4}
 							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="project-meeting-link">Meeting link</Label>
-							<Input
-								id="project-meeting-link"
-								type="url"
-								placeholder="https://example.com/meeting"
-								value={projectSettings.meeting_link}
-								onChange={(e) => setProjectSettings(prev => ({ ...prev, meeting_link: e.target.value }))}
-							/>
-							<p className="text-xs text-muted-foreground">Share a default call/room link for this project.</p>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="project-status">Status</Label>
