@@ -55,14 +55,29 @@ export async function createNotificationsForUsers(
   userIds: string[],
   notificationData: Omit<CreateNotificationInput, 'user_id'>
 ): Promise<Notification[]> {
-  if (userIds.length === 0) return [];
+  if (userIds.length === 0) {
+    console.warn('⚠️ No user IDs provided for notifications');
+    return [];
+  }
+
+  // Get current user to verify authentication
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  if (!currentUser) {
+    console.error('❌ Not authenticated - cannot create notifications');
+    throw new Error('Not authenticated');
+  }
 
   const notifications = userIds.map((userId) => ({
     user_id: userId,
     ...notificationData,
   }));
 
-  console.log('Creating notifications:', { userIds, notificationData, notifications });
+  console.log('📤 Creating notifications:', {
+    currentUserId: currentUser.id,
+    targetUserIds: userIds,
+    notificationCount: notifications.length,
+    notificationData
+  });
 
   const { data, error } = await supabase
     .from('notifications')
@@ -70,17 +85,25 @@ export async function createNotificationsForUsers(
     .select('*');
 
   if (error) {
-    console.error('Error creating notifications:', error);
+    console.error('❌ Error creating notifications:', error);
     console.error('Error details:', {
       code: error.code,
       message: error.message,
       details: error.details,
       hint: error.hint,
     });
+    console.error('Failed notification data:', notifications);
     throw error;
   }
 
-  console.log('Notifications created successfully:', data?.length || 0);
+  console.log('✅ Notifications created successfully:', data?.length || 0);
+  if (data && data.length > 0) {
+    console.log('Created notification IDs:', data.map(n => n.id));
+    console.log('Created notification user_ids:', data.map(n => n.user_id));
+  } else {
+    console.warn('⚠️ No notifications returned from insert (but no error)');
+  }
+  
   return (data || []) as Notification[];
 }
 
@@ -89,7 +112,12 @@ export async function createNotificationsForUsers(
  */
 export async function getUserNotifications(limit: number = 50): Promise<Notification[]> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  if (!user) {
+    console.error('❌ Not authenticated - cannot fetch notifications');
+    throw new Error('Not authenticated');
+  }
+
+  console.log('📥 Fetching notifications for user:', user.id);
 
   const { data, error } = await supabase
     .from('notifications')
@@ -99,10 +127,11 @@ export async function getUserNotifications(limit: number = 50): Promise<Notifica
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching notifications', error);
+    console.error('❌ Error fetching notifications', error);
     throw error;
   }
 
+  console.log('📥 Fetched notifications:', data?.length || 0);
   return (data || []) as Notification[];
 }
 

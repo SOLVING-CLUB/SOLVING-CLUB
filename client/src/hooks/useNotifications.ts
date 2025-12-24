@@ -45,8 +45,10 @@ export function useNotifications() {
         return;
       }
 
+      console.log('🔔 Setting up real-time subscription for user:', user.id);
+
       channel = supabase
-        .channel('notifications')
+        .channel(`notifications-${user.id}`)
         .on(
           'postgres_changes',
           {
@@ -56,10 +58,16 @@ export function useNotifications() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
+            console.log('🔔 Real-time INSERT received:', payload);
             if (!mounted) return;
             const newNotification = payload.new as Notification;
+            console.log('➕ Adding new notification:', newNotification);
             setNotifications((prev) => [newNotification, ...prev]);
-            setUnreadCount((prev) => prev + 1);
+            setUnreadCount((prev) => {
+              const newCount = prev + 1;
+              console.log('📊 Unread count updated:', newCount);
+              return newCount;
+            });
           }
         )
         .on(
@@ -71,6 +79,7 @@ export function useNotifications() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
+            console.log('🔔 Real-time UPDATE received:', payload);
             if (!mounted) return;
             const updatedNotification = payload.new as Notification;
             setNotifications((prev) =>
@@ -81,7 +90,14 @@ export function useNotifications() {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log('🔔 Real-time subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to notifications');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Real-time subscription error');
+          }
+        });
     });
 
     return () => {

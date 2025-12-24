@@ -98,31 +98,40 @@ export async function createProjectMeeting(input: CreateMeetingInput): Promise<P
       minute: '2-digit' 
     });
 
-    // Send notifications to all participants (excluding the creator to avoid duplicate)
-    // The creator already knows they created the meeting
-    const participantsToNotify = participant_ids.filter((pid) => pid !== user.id);
-    
-    if (participantsToNotify.length > 0) {
+    // Send notifications to all participants (including the creator so they also get notified)
+    // This ensures everyone in the meeting gets a notification
+    if (participant_ids.length > 0) {
       try {
-        console.log('Sending notifications to participants:', participantsToNotify);
-        const notifications = await createNotificationsForUsers(participantsToNotify, {
+        console.log('Sending notifications to all participants:', participant_ids);
+        console.log('Meeting details:', {
+          title: input.title,
+          projectName,
+          scheduledDate: formattedDate,
+          scheduledTime: formattedTime,
+          meetingId: data.id
+        });
+        
+        const notifications = await createNotificationsForUsers(participant_ids, {
           type: 'meeting_scheduled',
           title: 'New Meeting Scheduled',
           message: `You have been invited to "${input.title}" in ${projectName} on ${formattedDate} at ${formattedTime}.`,
           related_id: data.id,
           related_type: 'meeting',
         });
-        console.log('Notifications created successfully:', notifications.length);
+        
+        console.log('✅ Notifications created successfully:', notifications.length);
+        console.log('Notification IDs:', notifications.map(n => n.id));
       } catch (notifError: any) {
         // Log error but don't fail the meeting creation
-        console.error('Error sending notifications:', notifError);
+        console.error('❌ Error sending notifications:', notifError);
         console.error('Error details:', {
           code: notifError?.code,
           message: notifError?.message,
           details: notifError?.details,
           hint: notifError?.hint,
         });
-        console.error('Participant IDs to notify:', participantsToNotify);
+        console.error('Participant IDs to notify:', participant_ids);
+        console.error('Current user ID:', user.id);
         console.error('Notification data:', {
           type: 'meeting_scheduled',
           title: 'New Meeting Scheduled',
@@ -132,7 +141,7 @@ export async function createProjectMeeting(input: CreateMeetingInput): Promise<P
         });
       }
     } else {
-      console.log('No participants to notify (only creator in meeting)');
+      console.log('⚠️ No participants to notify');
     }
   }
 
