@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/theme-toggle";
-import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare } from "lucide-react";
+import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare, Bell } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 
 export const nav = [
 	{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -12,6 +13,7 @@ export const nav = [
 	{ href: "/dashboard/projects", label: "Projects", icon: Briefcase },
 	{ href: "/dashboard/global-tasks", label: "Global Tasks", icon: CheckSquare },
 	{ href: "/dashboard/financial", label: "Financial", icon: DollarSign },
+	{ href: "/dashboard/notifications", label: "Notifications", icon: Bell },
 	{ href: "/dashboard/profile", label: "Profile", icon: User },
 	{ href: "/dashboard/hours", label: "Hours", icon: Clock },
 ];
@@ -47,6 +49,9 @@ export default function Sidebar() {
 				))}
 			</nav>
 			<div className="mt-4 pt-2 space-y-2 border-t">
+				<div className="flex justify-center group-hover:justify-start px-0 group-hover:px-3">
+					<NotificationBell />
+				</div>
 				<div className="flex justify-center">
 					<ThemeToggle />
 				</div>

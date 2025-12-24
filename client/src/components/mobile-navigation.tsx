@@ -13,10 +13,10 @@ import {
 	FolderOpen, 
 	Settings, 
 	LogOut,
-	Bell,
 	Search,
 	DollarSign
 } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -116,10 +116,9 @@ export function MobileNavigation() {
 							<Search className="h-4 w-4" />
 							<span className="sr-only">Search</span>
 						</Button>
-						<Button variant="ghost" size="icon" className="md:hidden">
-							<Bell className="h-4 w-4" />
-							<span className="sr-only">Notifications</span>
-						</Button>
+						<div className="md:hidden">
+							<NotificationBell />
+						</div>
 					</div>
 				</div>
 			</div>

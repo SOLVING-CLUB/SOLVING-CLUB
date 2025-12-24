@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/toast";
 import { ProjectMeetingWithParticipants } from "@/lib/types/meetings";
-import { createProjectMeeting, getMeetingConflicts, getProjectMeetings, updateProjectMeetingNotes } from "@/lib/api/meetings";
-import { Calendar, Clock, Plus, Users, Video, AlertTriangle } from "lucide-react";
+import { createProjectMeeting, getMeetingConflicts, getProjectMeetings, updateProjectMeetingNotes, updateProjectMeeting, deleteProjectMeeting } from "@/lib/api/meetings";
+import { Calendar, Clock, Plus, Users, Video, AlertTriangle, Edit, Trash2 } from "lucide-react";
 
 interface ProjectMeetingsTabProps {
 	projectId: string;
@@ -42,6 +42,9 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 
 	const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
 	const [editingNotesValue, setEditingNotesValue] = useState("");
+	const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [meetingToDelete, setMeetingToDelete] = useState<ProjectMeetingWithParticipants | null>(null);
 
 	useEffect(() => {
 		loadCurrentUser();
@@ -204,12 +207,20 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 
 		setSaving(true);
 		try {
-			await checkConflicts();
+			if (!editingMeetingId) {
+				await checkConflicts();
+			}
 			// Ensure the current user is included as a participant
 			const participantIdsSet = new Set(selectedParticipantIds);
 			if (currentUserId) {
 				participantIdsSet.add(currentUserId);
 			}
+
+			if (editingMeetingId) {
+				await handleUpdateMeeting();
+				return;
+			}
+
 			await createProjectMeeting({
 				project_id: projectId,
 				title: title.trim(),
@@ -226,7 +237,7 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 			await loadData();
 		} catch (err) {
 			console.error(err);
-			toast.error("Error", "Failed to schedule meeting");
+			toast.error("Error", editingMeetingId ? "Failed to update meeting" : "Failed to schedule meeting");
 		} finally {
 			setSaving(false);
 		}
@@ -251,6 +262,82 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 		}
 	}
 
+	function handleStartEdit(meeting: ProjectMeetingWithParticipants) {
+		setEditingMeetingId(meeting.id);
+		setTitle(meeting.title);
+		const meetingDate = new Date(meeting.scheduled_at);
+		setDate(meetingDate.toISOString().split('T')[0]);
+		setTime(meetingDate.toTimeString().slice(0, 5));
+		setDuration(meeting.duration_minutes);
+		setMeetingLink(meeting.meeting_link);
+		setNotes(meeting.notes || "");
+		setSelectedParticipantIds(meeting.participants.map(p => p.user_id).filter(id => id !== currentUserId));
+		setIsScheduleOpen(true);
+	}
+
+	function handleCancelEdit() {
+		setEditingMeetingId(null);
+		resetForm();
+		setIsScheduleOpen(false);
+	}
+
+	async function handleUpdateMeeting() {
+		if (!editingMeetingId || !title.trim() || !date || !time || !meetingLink.trim()) {
+			toast.error("Validation Error", "Title, date, time, and meeting link are required");
+			return;
+		}
+
+		const scheduledDate = new Date(`${date}T${time}:00`);
+		if (isNaN(scheduledDate.getTime())) {
+			toast.error("Validation Error", "Invalid date or time");
+			return;
+		}
+
+		// Ensure the current user is included as a participant
+		const participantIdsSet = new Set(selectedParticipantIds);
+		if (currentUserId) {
+			participantIdsSet.add(currentUserId);
+		}
+
+		await updateProjectMeeting(editingMeetingId, {
+			title: title.trim(),
+			scheduled_at: scheduledDate,
+			duration_minutes: duration,
+			meeting_link: meetingLink.trim(),
+			notes: notes.trim() || undefined,
+			participant_ids: Array.from(participantIdsSet),
+		});
+
+		toast.success("Meeting updated", "Your meeting has been updated");
+		setIsScheduleOpen(false);
+		setEditingMeetingId(null);
+		resetForm();
+		await loadData();
+	}
+
+	function handleDeleteClick(meeting: ProjectMeetingWithParticipants) {
+		setMeetingToDelete(meeting);
+		setIsDeleteDialogOpen(true);
+	}
+
+	async function handleConfirmDelete() {
+		if (!meetingToDelete) return;
+
+		setSaving(true);
+		try {
+			await deleteProjectMeeting(meetingToDelete.id);
+			toast.success("Meeting deleted", "The meeting has been deleted");
+			setIsDeleteDialogOpen(false);
+			setMeetingToDelete(null);
+			await loadData();
+		} catch (err) {
+			console.error(err);
+			toast.error("Error", "Failed to delete meeting");
+		} finally {
+			setSaving(false);
+		}
+	}
+
 	return (
 		<div className="space-y-6">
 			{/* Summary / Header */}
@@ -265,7 +352,13 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 							Schedule meetings, see upcoming calls, and review meeting history.
 						</p>
 					</div>
-					<Dialog open={isScheduleOpen} onOpenChange={(open) => { setIsScheduleOpen(open); if (!open) resetForm(); }}>
+					<Dialog open={isScheduleOpen} onOpenChange={(open) => { 
+						setIsScheduleOpen(open); 
+						if (!open) {
+							resetForm();
+							setEditingMeetingId(null);
+						}
+					}}>
 						<DialogTrigger asChild>
 							<Button>
 								<Plus className="h-4 w-4 mr-2" />
@@ -274,9 +367,12 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 						</DialogTrigger>
 						<DialogContent className="sm:max-w-md">
 							<DialogHeader>
-								<DialogTitle>Schedule Meeting</DialogTitle>
+								<DialogTitle>{editingMeetingId ? "Edit Meeting" : "Schedule Meeting"}</DialogTitle>
 								<DialogDescription>
-									Create a new meeting for this project. Participants will be able to join via the link.
+									{editingMeetingId 
+										? "Update the meeting details. Participants will be notified of changes."
+										: "Create a new meeting for this project. Participants will be able to join via the link."
+									}
 								</DialogDescription>
 							</DialogHeader>
 							<div className="space-y-4">
@@ -387,11 +483,17 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 								</div>
 							</div>
 							<DialogFooter>
-								<Button variant="outline" onClick={() => setIsScheduleOpen(false)} disabled={saving}>
+								<Button variant="outline" onClick={() => {
+									setIsScheduleOpen(false);
+									handleCancelEdit();
+								}} disabled={saving}>
 									Cancel
 								</Button>
 								<Button onClick={handleSchedule} disabled={saving}>
-									{saving ? "Scheduling..." : "Schedule"}
+									{saving 
+										? (editingMeetingId ? "Updating..." : "Scheduling...") 
+										: (editingMeetingId ? "Update" : "Schedule")
+									}
 								</Button>
 							</DialogFooter>
 						</DialogContent>
@@ -462,6 +564,26 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 											</div>
 										</div>
 										<div className="flex items-center gap-2">
+											{m.created_by === currentUserId && (
+												<>
+													<Button 
+														variant="outline" 
+														size="sm"
+														onClick={() => handleStartEdit(m)}
+													>
+														<Edit className="h-4 w-4 mr-1" />
+														Edit
+													</Button>
+													<Button 
+														variant="outline" 
+														size="sm"
+														onClick={() => handleDeleteClick(m)}
+													>
+														<Trash2 className="h-4 w-4 mr-1" />
+														Delete
+													</Button>
+												</>
+											)}
 											<Button asChild variant="default" size="sm">
 												<a href={m.meeting_link} target="_blank" rel="noreferrer">
 													<Video className="h-4 w-4 mr-1" />
@@ -517,12 +639,34 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 													</div>
 												)}
 											</div>
-											<Button asChild variant="outline" size="sm">
-												<a href={m.meeting_link} target="_blank" rel="noreferrer">
-													<Video className="h-4 w-4 mr-1" />
-													Join
-												</a>
-											</Button>
+											<div className="flex items-center gap-2">
+												{m.created_by === currentUserId && (
+													<>
+														<Button 
+															variant="outline" 
+															size="sm"
+															onClick={() => handleStartEdit(m)}
+														>
+															<Edit className="h-4 w-4 mr-1" />
+															Edit
+														</Button>
+														<Button 
+															variant="outline" 
+															size="sm"
+															onClick={() => handleDeleteClick(m)}
+														>
+															<Trash2 className="h-4 w-4 mr-1" />
+															Delete
+														</Button>
+													</>
+												)}
+												<Button asChild variant="outline" size="sm">
+													<a href={m.meeting_link} target="_blank" rel="noreferrer">
+														<Video className="h-4 w-4 mr-1" />
+														Join
+													</a>
+												</Button>
+											</div>
 										</div>
 										<div className="space-y-1">
 											<div className="flex items-center justify-between">
@@ -575,6 +719,37 @@ export function ProjectMeetingsTab({ projectId }: ProjectMeetingsTabProps) {
 					)}
 				</CardContent>
 			</Card>
+
+			{/* Delete Confirmation Dialog */}
+			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Delete Meeting</DialogTitle>
+						<DialogDescription>
+							Are you sure you want to delete "{meetingToDelete?.title}"? This action cannot be undone.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button 
+							variant="outline" 
+							onClick={() => {
+								setIsDeleteDialogOpen(false);
+								setMeetingToDelete(null);
+							}}
+							disabled={saving}
+						>
+							Cancel
+						</Button>
+						<Button 
+							variant="destructive" 
+							onClick={handleConfirmDelete}
+							disabled={saving}
+						>
+							{saving ? "Deleting..." : "Delete"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

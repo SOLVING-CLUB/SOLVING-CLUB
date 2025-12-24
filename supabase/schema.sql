@@ -505,36 +505,13 @@ create table if not exists public.learning_resources (
 	updated_at timestamptz default now()
 );
 
--- Weekly Hours table
-create table if not exists public.weekly_hours (
-	id uuid primary key default gen_random_uuid(),
-	user_id uuid references auth.users(id) on delete cascade not null,
-	week_start date not null, -- Monday of the week
-	monday_hours integer not null default 0,
-	tuesday_hours integer not null default 0,
-	wednesday_hours integer not null default 0,
-	thursday_hours integer not null default 0,
-	friday_hours integer not null default 0,
-	saturday_hours integer not null default 0,
-	sunday_hours integer not null default 0,
-	notes text,
-	created_at timestamptz default now(),
-	updated_at timestamptz default now(),
-	unique (user_id, week_start)
-);
-
 -- Triggers for new tables
 create or replace trigger learning_resources_set_updated_at
 before update on public.learning_resources
 for each row execute function public.set_updated_at();
 
-create or replace trigger weekly_hours_set_updated_at
-before update on public.weekly_hours
-for each row execute function public.set_updated_at();
-
 -- Enable RLS for new tables
 alter table public.learning_resources enable row level security;
-alter table public.weekly_hours enable row level security;
 
 -- Learning Resources policies
 drop policy if exists "Users can view their own learning resources" on public.learning_resources;
@@ -553,19 +530,73 @@ drop policy if exists "Users can delete their own learning resources" on public.
 create policy "Users can delete their own learning resources" on public.learning_resources
 	for delete using (auth.uid() = user_id);
 
--- Weekly Hours policies
-drop policy if exists "Users can view all weekly hours" on public.weekly_hours;
-create policy "Users can view all weekly hours" on public.weekly_hours
-	for select using (auth.role() = 'authenticated');
+-- Calendar Availability table (for Hours page)
+create table if not exists public.calendar_availability (
+	id uuid primary key default gen_random_uuid(),
+	user_id uuid references auth.users(id) on delete cascade not null,
+	date date not null,
+	start_time time not null,
+	end_time time not null,
+	title text,
+	notes text,
+	availability_type text not null default 'available' check (availability_type in ('available', 'busy', 'tentative')),
+	created_at timestamptz default now(),
+	updated_at timestamptz default now()
+);
 
-drop policy if exists "Users can create their own weekly hours" on public.weekly_hours;
-create policy "Users can create their own weekly hours" on public.weekly_hours
+create index if not exists calendar_availability_user_id_idx on public.calendar_availability(user_id);
+create index if not exists calendar_availability_date_idx on public.calendar_availability(date);
+
+create or replace trigger calendar_availability_set_updated_at
+before update on public.calendar_availability
+for each row execute function public.set_updated_at();
+
+alter table public.calendar_availability enable row level security;
+
+drop policy if exists "Users can view their own calendar availability" on public.calendar_availability;
+create policy "Users can view their own calendar availability" on public.calendar_availability
+	for select using (auth.uid() = user_id);
+
+drop policy if exists "Users can create their own calendar availability" on public.calendar_availability;
+create policy "Users can create their own calendar availability" on public.calendar_availability
 	for insert with check (auth.uid() = user_id);
 
-drop policy if exists "Users can update their own weekly hours" on public.weekly_hours;
-create policy "Users can update their own weekly hours" on public.weekly_hours
+drop policy if exists "Users can update their own calendar availability" on public.calendar_availability;
+create policy "Users can update their own calendar availability" on public.calendar_availability
 	for update using (auth.uid() = user_id);
 
-drop policy if exists "Users can delete their own weekly hours" on public.weekly_hours;
-create policy "Users can delete their own weekly hours" on public.weekly_hours
+drop policy if exists "Users can delete their own calendar availability" on public.calendar_availability;
+create policy "Users can delete their own calendar availability" on public.calendar_availability
 	for delete using (auth.uid() = user_id);
+
+-- Notifications table
+-- Note: This table should be recreated using recreate-notifications-table.sql to clear old data
+create table if not exists public.notifications (
+	id uuid primary key default gen_random_uuid(),
+	user_id uuid references auth.users(id) on delete cascade not null,
+	type text not null check (type in ('meeting_scheduled', 'meeting_updated', 'meeting_cancelled', 'task_assigned', 'message', 'other')),
+	title text not null,
+	message text not null,
+	related_id uuid, -- ID of related entity (meeting_id, task_id, etc.)
+	related_type text, -- Type of related entity ('meeting', 'task', etc.)
+	is_read boolean default false,
+	created_at timestamptz default now()
+);
+
+create index if not exists notifications_user_id_idx on public.notifications(user_id);
+create index if not exists notifications_is_read_idx on public.notifications(user_id, is_read);
+create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "Users can view their own notifications" on public.notifications;
+create policy "Users can view their own notifications" on public.notifications
+	for select using (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own notifications" on public.notifications;
+create policy "Users can update their own notifications" on public.notifications
+	for update using (auth.uid() = user_id);
+
+drop policy if exists "System can create notifications" on public.notifications;
+create policy "System can create notifications" on public.notifications
+	for insert with check (auth.role() = 'authenticated');

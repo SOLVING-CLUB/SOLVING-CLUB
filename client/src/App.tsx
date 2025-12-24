@@ -21,6 +21,7 @@ import HoursPage from "@/pages/dashboard/HoursPage";
 import LearningsPage from "@/pages/dashboard/LearningsPage";
 import FinancialPage from "@/pages/dashboard/FinancialPage";
 import GlobalTasksPage from "@/pages/dashboard/GlobalTasksPage";
+import NotificationsPage from "@/pages/dashboard/NotificationsPage";
 
 import { lazy, Suspense } from "react";
 
@@ -161,6 +162,11 @@ function App() {
         <Route path="/dashboard/global-tasks">
           <ProtectedRoute>
             <GlobalTasksPage />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/dashboard/notifications">
+          <ProtectedRoute>
+            <NotificationsPage />
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/calendar">

@@ -6,6 +6,7 @@ import type {
   MeetingUpdateInput,
   ConflictResult,
 } from '@/lib/types/meetings';
+import { createNotificationsForUsers } from './notifications';
 
 const supabase = getSupabaseClient();
 
@@ -76,6 +77,63 @@ export async function createProjectMeeting(input: CreateMeetingInput): Promise<P
       console.error('Error creating meeting participants', pError);
       throw pError;
     }
+
+    // Get project name for notification
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('name')
+      .eq('id', input.project_id)
+      .single();
+
+    const projectName = projectData?.name || 'the project';
+    const scheduledDate = new Date(input.scheduled_at);
+    const formattedDate = scheduledDate.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const formattedTime = scheduledDate.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+
+    // Send notifications to all participants (excluding the creator to avoid duplicate)
+    // The creator already knows they created the meeting
+    const participantsToNotify = participant_ids.filter((pid) => pid !== user.id);
+    
+    if (participantsToNotify.length > 0) {
+      try {
+        console.log('Sending notifications to participants:', participantsToNotify);
+        const notifications = await createNotificationsForUsers(participantsToNotify, {
+          type: 'meeting_scheduled',
+          title: 'New Meeting Scheduled',
+          message: `You have been invited to "${input.title}" in ${projectName} on ${formattedDate} at ${formattedTime}.`,
+          related_id: data.id,
+          related_type: 'meeting',
+        });
+        console.log('Notifications created successfully:', notifications.length);
+      } catch (notifError: any) {
+        // Log error but don't fail the meeting creation
+        console.error('Error sending notifications:', notifError);
+        console.error('Error details:', {
+          code: notifError?.code,
+          message: notifError?.message,
+          details: notifError?.details,
+          hint: notifError?.hint,
+        });
+        console.error('Participant IDs to notify:', participantsToNotify);
+        console.error('Notification data:', {
+          type: 'meeting_scheduled',
+          title: 'New Meeting Scheduled',
+          message: `You have been invited to "${input.title}" in ${projectName} on ${formattedDate} at ${formattedTime}.`,
+          related_id: data.id,
+          related_type: 'meeting',
+        });
+      }
+    } else {
+      console.log('No participants to notify (only creator in meeting)');
+    }
   }
 
   const [withParticipants] = await getProjectMeetings(input.project_id);
@@ -143,6 +201,18 @@ export async function updateProjectMeetingNotes(meetingId: string, notes: string
 
   if (error) {
     console.error('Error updating meeting notes', error);
+    throw error;
+  }
+}
+
+export async function deleteProjectMeeting(meetingId: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_meetings')
+    .delete()
+    .eq('id', meetingId);
+
+  if (error) {
+    console.error('Error deleting meeting', error);
     throw error;
   }
 }
