@@ -67,22 +67,29 @@ export async function createNotificationsForUsers(
     throw new Error('Not authenticated');
   }
 
-  const notifications = userIds.map((userId) => ({
+  // Prepare notifications as JSONB array for the database function
+  const notificationsJson = userIds.map((userId) => ({
     user_id: userId,
-    ...notificationData,
+    type: notificationData.type,
+    title: notificationData.title,
+    message: notificationData.message,
+    related_id: notificationData.related_id || null,
+    related_type: notificationData.related_type || null,
   }));
 
-  console.log('📤 Creating notifications:', {
+  console.log('📤 Creating notifications via database function:', {
     currentUserId: currentUser.id,
     targetUserIds: userIds,
-    notificationCount: notifications.length,
-    notificationData
+    notificationCount: notificationsJson.length,
+    notificationData,
+    notificationsJson
   });
 
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert(notifications)
-    .select('*');
+  // Use the database function that bypasses RLS
+  // Supabase automatically converts JavaScript arrays/objects to JSONB
+  const { data, error } = await supabase.rpc('create_notifications_for_users', {
+    p_notifications: notificationsJson as any, // Type assertion for JSONB conversion
+  });
 
   if (error) {
     console.error('❌ Error creating notifications:', error);
@@ -92,7 +99,7 @@ export async function createNotificationsForUsers(
       details: error.details,
       hint: error.hint,
     });
-    console.error('Failed notification data:', notifications);
+    console.error('Failed notification data:', notificationsJson);
     throw error;
   }
 
@@ -101,7 +108,7 @@ export async function createNotificationsForUsers(
     console.log('Created notification IDs:', data.map(n => n.id));
     console.log('Created notification user_ids:', data.map(n => n.user_id));
   } else {
-    console.warn('⚠️ No notifications returned from insert (but no error)');
+    console.warn('⚠️ No notifications returned from function (but no error)');
   }
   
   return (data || []) as Notification[];
