@@ -33,6 +33,7 @@ import { ProjectMeetingsTab } from "@/components/project-meetings/ProjectMeeting
 import { Link, useParams, useLocation } from "wouter";
 import FileUpload from "@/components/file-upload";
 import { ProjectFinanceManager } from "@/components/project-finance/project-finance-manager";
+import { ProjectTaskTracker } from "@/components/project-tasks/ProjectTaskTracker";
 
 interface Project {
 	id: string;
@@ -47,17 +48,6 @@ interface Project {
 	client_company?: string;
 	client_phone?: string;
 	client_notes?: string;
-}
-
-interface Task {
-	id: string;
-	title: string;
-	description: string;
-	    status: 'todo' | 'in-progress' | 'completed';
-    priority: 'low' | 'medium' | 'high';
-	due_date: string;
-	assigned_to: string;
-	created_at: string;
 }
 
 interface Member {
@@ -82,14 +72,6 @@ interface Message {
 	};
 }
 
-type NewTask = {
-	title: string;
-	description: string;
-	priority: 'low' | 'medium' | 'high';
-	due_date: string;
-	assigned_to: string;
-};
-
 export default function ProjectDetailPage() {
 	const params = useParams();
 	const [location] = useLocation();
@@ -97,7 +79,6 @@ export default function ProjectDetailPage() {
 	const supabase = getSupabaseClient();
 	
 	const [project, setProject] = useState<Project | null>(null);
-	const [tasks, setTasks] = useState<Task[]>([]);
 	const [members, setMembers] = useState<Member[]>([]);
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [loading, setLoading] = useState(false);
@@ -131,26 +112,6 @@ export default function ProjectDetailPage() {
 		};
 	}, [location]);
 	
-	// New task form
-	const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
-	const [newTask, setNewTask] = useState<NewTask>({
-		title: "",
-		description: "",
-		priority: "medium",
-		due_date: "",
-		assigned_to: ""
-	});
-
-	// Edit task form
-	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-	const [taskBeingEdited, setTaskBeingEdited] = useState<Task | null>(null);
-	const [editTaskState, setEditTaskState] = useState<NewTask>({
-		title: "",
-		description: "",
-		priority: "medium",
-		due_date: "",
-		assigned_to: "",
-	});
 	
 	// Chat
 	const [newMessage, setNewMessage] = useState("");
@@ -180,15 +141,6 @@ export default function ProjectDetailPage() {
 		}
 
 		setProject(projectData);
-
-		// Load tasks
-		const { data: tasksData } = await supabase
-			.from("project_tasks")
-			.select("*")
-			.eq("project_id", projectId)
-			.order("created_at", { ascending: false });
-
-		setTasks(tasksData || []);
 
 		// Load members then enrich with profiles
 		const { data: memberRows } = await supabase
@@ -254,7 +206,6 @@ export default function ProjectDetailPage() {
 			// Realtime subscriptions
 			const channel = supabase
 				.channel(`project-${projectId}`)
-				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
 				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_members', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
 				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_messages', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
 				.on('postgres_changes', { event: '*', schema: 'public', table: 'project_files', filter: `project_id=eq.${projectId}` }, () => loadProjectData())
@@ -266,97 +217,6 @@ export default function ProjectDetailPage() {
 		}
 	}, [projectId, loadProjectData, supabase]);
 
-	async function createTask() {
-		if (!newTask.title.trim()) {
-			toast.error("Task title is required");
-			return;
-		}
-
-		setLoading(true);
-		const { error } = await supabase
-			.from("project_tasks")
-			.insert({
-				project_id: projectId,
-				title: newTask.title,
-				description: newTask.description,
-				priority: newTask.priority,
-				due_date: newTask.due_date || null,
-				assigned_to: newTask.assigned_to || null,
-				status: "todo"
-			});
-
-		if (error) {
-			toast.error("Failed to create task");
-			setLoading(false);
-			return;
-		}
-
-		toast.success("Task created successfully");
-		setNewTask({ title: "", description: "", priority: "medium", due_date: "", assigned_to: "" });
-		setIsTaskDialogOpen(false);
-		loadProjectData();
-	}
-
-	async function updateTask() {
-		if (!taskBeingEdited) return;
-		if (!editTaskState.title.trim()) {
-			toast.error("Task title is required");
-			return;
-		}
-
-		setLoading(true);
-		const { error } = await supabase
-			.from("project_tasks")
-			.update({
-				title: editTaskState.title,
-				description: editTaskState.description,
-				priority: editTaskState.priority,
-				due_date: editTaskState.due_date || null,
-				assigned_to: editTaskState.assigned_to || null,
-			})
-			.eq("id", taskBeingEdited.id);
-
-		if (error) {
-			toast.error("Failed to update task");
-			setLoading(false);
-			return;
-		}
-
-		toast.success("Task updated successfully");
-		setIsEditDialogOpen(false);
-		setTaskBeingEdited(null);
-		loadProjectData();
-	}
-
-	async function deleteTask(taskId: string) {
-		if (!confirm("Delete this task? This cannot be undone.")) return;
-		setLoading(true);
-		const { error } = await supabase
-			.from("project_tasks")
-			.delete()
-			.eq("id", taskId);
-		if (error) {
-			toast.error("Failed to delete task");
-			setLoading(false);
-			return;
-		}
-		toast.success("Task deleted");
-		loadProjectData();
-	}
-
-	async function updateTaskStatus(taskId: string, status: Task["status"]) {
-		setLoading(true);
-		const { error } = await supabase
-			.from("project_tasks")
-			.update({ status })
-			.eq("id", taskId);
-		if (error) {
-			toast.error("Failed to update status");
-			setLoading(false);
-			return;
-		}
-		loadProjectData();
-	}
 
 	async function sendMessage() {
 		if (!newMessage.trim()) {
@@ -390,15 +250,6 @@ export default function ProjectDetailPage() {
 		case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
 		case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
 		case 'on-hold': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-		}
-	};
-
-	const getTaskStatusColor = (status: string) => {
-		switch (status) {
-					case 'todo': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-		case 'in-progress': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-		case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
 		default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 		}
 	};
@@ -522,9 +373,9 @@ export default function ProjectDetailPage() {
 								</CardTitle>
 							</CardHeader>
 							<CardContent>
-								<div className="text-3xl font-bold">{tasks.length}</div>
+								<div className="text-3xl font-bold">-</div>
 								<p className="text-sm text-muted-foreground">
-									{tasks.filter(t => t.status === 'completed').length} completed
+									View in Tasks tab
 								</p>
 							</CardContent>
 						</Card>
@@ -538,7 +389,7 @@ export default function ProjectDetailPage() {
 							</CardHeader>
 							<CardContent>
 								<div className="text-3xl font-bold">
-									{tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'completed').length / tasks.length) * 100) : 0}%
+									-
 								</div>
 								<p className="text-sm text-muted-foreground">Tasks completed</p>
 							</CardContent>
@@ -577,152 +428,7 @@ export default function ProjectDetailPage() {
 
 				{/* Tasks Tab */}
 				<TabsContent value="tasks" className="space-y-6">
-					<Card>
-						<CardHeader className="pb-4">
-							<div className="flex items-center justify-between">
-								<CardTitle className="text-lg">Tasks</CardTitle>
-								<Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-									<DialogTrigger asChild>
-										<Button size="sm">
-											<Plus className="h-4 w-4 mr-2" />
-											Add Task
-										</Button>
-									</DialogTrigger>
-									<DialogContent className="sm:max-w-md">
-										<DialogHeader>
-											<DialogTitle>Create New Task</DialogTitle>
-											<DialogDescription>
-												Add a new task to track project progress.
-											</DialogDescription>
-										</DialogHeader>
-										<div className="space-y-4">
-											<div className="space-y-2">
-												<Label htmlFor="task-title">Task Title *</Label>
-												<Input
-													id="task-title"
-													placeholder="e.g. Design homepage mockup"
-													value={newTask.title}
-													onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="task-description">Description</Label>
-												<Textarea
-													id="task-description"
-													placeholder="Describe the task requirements..."
-													value={newTask.description}
-													onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
-													rows={3}
-												/>
-											</div>
-											<div className="grid grid-cols-2 gap-4">
-												<div className="space-y-2">
-													<Label htmlFor="task-priority">Priority</Label>
-													<select
-														id="task-priority"
-														className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-														value={newTask.priority}
-														onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as NewTask['priority'] }))}
-													>
-														<option value="low">Low</option>
-														<option value="medium">Medium</option>
-														<option value="high">High</option>
-													</select>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="task-due-date">Due Date</Label>
-													<Input
-														id="task-due-date"
-														type="date"
-														value={newTask.due_date}
-														onChange={(e) => setNewTask(prev => ({ ...prev, due_date: e.target.value }))}
-													/>
-												</div>
-											</div>
-										</div>
-										<DialogFooter>
-											<Button variant="outline" onClick={() => setIsTaskDialogOpen(false)}>
-												Cancel
-											</Button>
-											<Button onClick={createTask} disabled={loading}>
-												{loading ? "Creating..." : "Create Task"}
-											</Button>
-										</DialogFooter>
-									</DialogContent>
-								</Dialog>
-							</div>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								{tasks.length === 0 ? (
-									<div className="text-center py-8 text-muted-foreground">
-										<FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-										<p>No tasks yet</p>
-										<p className="text-sm mt-1">Create your first task to get started</p>
-									</div>
-								) : (
-									tasks.map((task) => (
-										<div key={task.id} className="flex items-center gap-4 p-4 border rounded-lg">
-											<div className="flex-1">
-												<div className="flex items-center gap-2 mb-1">
-													<h4 className="font-medium">{task.title}</h4>
-													<Badge className={getTaskStatusColor(task.status)}>
-														{task.status.replace('-', ' ')}
-													</Badge>
-													<Badge className={getPriorityColor(task.priority)}>
-														{task.priority}
-													</Badge>
-												</div>
-												{task.description && (
-													<p className="text-sm text-muted-foreground">{task.description}</p>
-												)}
-												{task.due_date && (
-													<div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-														<Calendar className="h-3 w-3" />
-														Due: {new Date(task.due_date).toLocaleDateString()}
-													</div>
-												)}
-											</div>
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button variant="outline" size="sm">
-														<MoreVertical className="h-4 w-4" />
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end" className="w-48">
-													<DropdownMenuLabel>Actions</DropdownMenuLabel>
-													<DropdownMenuSeparator />
-													<DropdownMenuLabel className="text-xs text-muted-foreground">Status</DropdownMenuLabel>
-													<DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'todo')}>Mark as To Do</DropdownMenuItem>
-													<DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'in-progress')}>Mark In Progress</DropdownMenuItem>
-													<DropdownMenuItem onClick={() => updateTaskStatus(task.id, 'completed')}>Mark Completed</DropdownMenuItem>
-													<DropdownMenuSeparator />
-													<DropdownMenuItem
-														onClick={() => {
-															setTaskBeingEdited(task);
-															setEditTaskState({
-																title: task.title,
-																description: task.description || "",
-																priority: task.priority,
-																due_date: task.due_date ? new Date(task.due_date).toISOString().slice(0,10) : "",
-																assigned_to: task.assigned_to || "",
-															});
-															setIsEditDialogOpen(true);
-														}}
-													>
-														Edit Task
-													</DropdownMenuItem>
-													<DropdownMenuItem className="text-red-600" onClick={() => deleteTask(task.id)}>
-														Delete Task
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										</div>
-									))
-								)}
-							</div>
-						</CardContent>
-					</Card>
+					<ProjectTaskTracker projectId={projectId} members={members} />
 				</TabsContent>
 
 				{/* Meetings Tab */}
@@ -828,76 +534,6 @@ export default function ProjectDetailPage() {
 				</TabsContent>
 			</Tabs>
 
-			{/* Edit Task Dialog */}
-			<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-				<DialogContent className="sm:max-w-md">
-					<DialogHeader>
-						<DialogTitle>Edit Task</DialogTitle>
-						<DialogDescription>Update task details and assignment.</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-4">
-						<div className="space-y-2">
-							<Label htmlFor="edit-task-title">Task Title *</Label>
-							<Input
-								id="edit-task-title"
-								value={editTaskState.title}
-								onChange={(e) => setEditTaskState(prev => ({ ...prev, title: e.target.value }))}
-							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="edit-task-description">Description</Label>
-							<Textarea
-								id="edit-task-description"
-								value={editTaskState.description}
-								onChange={(e) => setEditTaskState(prev => ({ ...prev, description: e.target.value }))}
-								rows={3}
-							/>
-						</div>
-						<div className="grid grid-cols-2 gap-4">
-							<div className="space-y-2">
-								<Label htmlFor="edit-task-priority">Priority</Label>
-								<select
-									id="edit-task-priority"
-									className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									value={editTaskState.priority}
-									onChange={(e) => setEditTaskState(prev => ({ ...prev, priority: e.target.value as NewTask['priority'] }))}
-								>
-									<option value="low">Low</option>
-									<option value="medium">Medium</option>
-									<option value="high">High</option>
-								</select>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="edit-task-due-date">Due Date</Label>
-								<Input
-									id="edit-task-due-date"
-									type="date"
-									value={editTaskState.due_date}
-									onChange={(e) => setEditTaskState(prev => ({ ...prev, due_date: e.target.value }))}
-								/>
-							</div>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="edit-task-assigned">Assign To</Label>
-							<select
-								id="edit-task-assigned"
-								className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-								value={editTaskState.assigned_to}
-								onChange={(e) => setEditTaskState(prev => ({ ...prev, assigned_to: e.target.value }))}
-							>
-								<option value="">Unassigned</option>
-								{members.map((m) => (
-									<option key={m.user_id} value={m.user_id}>{m.user.full_name}</option>
-								))}
-							</select>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-						<Button onClick={updateTask} disabled={loading}>{loading ? "Saving..." : "Save Changes"}</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }
