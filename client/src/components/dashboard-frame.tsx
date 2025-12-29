@@ -2,10 +2,14 @@
 import Sidebar from "@/components/sidebar";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { FadeIn } from "@/components/transition";
+import { GlobalHeader } from "@/components/global-header";
 
 export default function DashboardFrame({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="relative min-h-screen">
+			{/* Global Header - Fixed top right */}
+			<GlobalHeader />
+
 			{/* Mobile Navigation */}
 			<MobileNavigation />
 

@@ -30,7 +30,7 @@ import {
 	User
 } from "lucide-react";
 import { ProjectMeetingsTab } from "@/components/project-meetings/ProjectMeetingsTab";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import FileUpload from "@/components/file-upload";
 import { ProjectFinanceManager } from "@/components/project-finance/project-finance-manager";
 
@@ -92,6 +92,7 @@ type NewTask = {
 
 export default function ProjectDetailPage() {
 	const params = useParams();
+	const [location] = useLocation();
 	const projectId = params.id as string;
 	const supabase = getSupabaseClient();
 	
@@ -100,7 +101,35 @@ export default function ProjectDetailPage() {
 	const [members, setMembers] = useState<Member[]>([]);
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [loading, setLoading] = useState(false);
-	const [activeTab, setActiveTab] = useState("overview");
+	
+	// Initialize activeTab from URL hash, default to "overview"
+	const getInitialTab = () => {
+		const hash = window.location.hash.slice(1); // Remove the '#'
+		const validTabs = ['overview', 'tasks', 'members', 'files', 'finance', 'meetings', 'chat'];
+		return validTabs.includes(hash) ? hash : 'overview';
+	};
+	const [activeTab, setActiveTab] = useState(getInitialTab);
+	
+	// Update tab when hash changes
+	useEffect(() => {
+		const updateTabFromHash = () => {
+			const hash = window.location.hash.slice(1);
+			const validTabs = ['overview', 'tasks', 'members', 'files', 'finance', 'meetings', 'chat'];
+			if (validTabs.includes(hash)) {
+				setActiveTab(hash);
+			}
+		};
+		
+		// Update on location change
+		updateTabFromHash();
+		
+		// Also listen for hashchange events (in case hash changes without navigation)
+		window.addEventListener('hashchange', updateTabFromHash);
+		
+		return () => {
+			window.removeEventListener('hashchange', updateTabFromHash);
+		};
+	}, [location]);
 	
 	// New task form
 	const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);

@@ -97,7 +97,7 @@ export function NotificationBell() {
                         .single()
                         .then(({ data: meeting }) => {
                           if (meeting) {
-                            window.location.href = `/dashboard/projects/${meeting.project_id}`;
+                            window.location.href = `/dashboard/projects/${meeting.project_id}#meetings`;
                           }
                         });
                     }

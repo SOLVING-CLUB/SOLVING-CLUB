@@ -57,7 +57,7 @@ export default function NotificationsPage() {
         .single();
 
       if (meeting) {
-        window.location.href = `/dashboard/projects/${meeting.project_id}`;
+        window.location.href = `/dashboard/projects/${meeting.project_id}#meetings`;
       }
     }
   };
