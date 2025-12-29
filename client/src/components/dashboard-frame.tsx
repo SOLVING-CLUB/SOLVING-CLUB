@@ -22,14 +22,14 @@ export default function DashboardFrame({ children }: { children: React.ReactNode
 
 				{/* Desktop Main Content */}
 				<FadeIn>
-					<main className="p-4 sm:p-6 relative z-10">{children}</main>
+					<main className="p-4 sm:p-6 pt-16 sm:pt-20 relative z-10">{children}</main>
 				</FadeIn>
 			</div>
 
 			{/* Mobile Main Content */}
 			<div className="lg:hidden">
 				<FadeIn>
-					<main className="pb-20 relative z-10">{children}</main>
+					<main className="pt-16 pb-20 relative z-10">{children}</main>
 				</FadeIn>
 			</div>
 		</div>
