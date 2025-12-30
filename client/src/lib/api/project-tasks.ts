@@ -156,11 +156,44 @@ export async function createProjectTask(input: CreateTaskInput): Promise<Project
  * Update a task
  */
 export async function updateProjectTask(taskId: string, input: UpdateTaskInput): Promise<ProjectTask> {
-  // Handle priority_label update
-  const updateData: any = { ...input };
-  if (input.priority) {
-    updateData.priority_label = input.priority;
+  // Build update data, removing undefined values and handling special cases
+  const updateData: any = {};
+  
+  // Only include fields that are actually provided
+  if (input.title !== undefined) updateData.title = input.title;
+  if (input.description !== undefined) updateData.description = input.description;
+  if (input.status !== undefined) updateData.status = input.status;
+  if (input.due_date !== undefined) updateData.due_date = input.due_date || null;
+  if (input.start_date !== undefined) updateData.start_date = input.start_date || null;
+  if (input.assigned_to !== undefined) updateData.assigned_to = input.assigned_to || null;
+  if (input.assigned_team !== undefined) updateData.assigned_team = input.assigned_team || null;
+  if (input.tags !== undefined) updateData.tags = input.tags || [];
+  if (input.labels !== undefined) updateData.labels = input.labels || [];
+  if (input.supporting_links !== undefined) updateData.supporting_links = input.supporting_links || [];
+  if (input.order_index !== undefined) updateData.order_index = input.order_index;
+  
+  // Handle priority - set both priority_label and priority for backward compatibility
+  if (input.priority !== undefined) {
+    // Validate priority is in P1-P5 format
+    const validPriorities = ['P1', 'P2', 'P3', 'P4', 'P5'];
+    if (validPriorities.includes(input.priority)) {
+      updateData.priority_label = input.priority;
+      // Map P1-P5 to old priority format for backward compatibility
+      const priorityMap: Record<string, string> = {
+        'P1': 'high',
+        'P2': 'high',
+        'P3': 'medium',
+        'P4': 'low',
+        'P5': 'low',
+      };
+      updateData.priority = priorityMap[input.priority] || 'medium';
+    } else {
+      // If invalid priority, don't update it (keep existing value)
+      console.warn('Invalid priority value:', input.priority, '- skipping priority update');
+    }
   }
+
+  console.log('Updating task:', taskId, 'with data:', updateData);
 
   const { data, error } = await supabase
     .from('project_tasks')
@@ -171,7 +204,8 @@ export async function updateProjectTask(taskId: string, input: UpdateTaskInput):
 
   if (error) {
     console.error('Error updating task', error);
-    throw error;
+    console.error('Update data that failed:', updateData);
+    throw new Error(error.message || 'Failed to update task');
   }
 
   const enriched = await enrichTasksWithUsers([data as ProjectTask]);
@@ -248,13 +282,23 @@ async function enrichTasksWithComments(tasks: ProjectTask[]): Promise<ProjectTas
   if (tasks.length === 0) return tasks;
 
   const taskIds = tasks.map(t => t.id);
-  const { data: comments } = await supabase
+  
+  // Handle empty taskIds array
+  if (taskIds.length === 0) return tasks;
+
+  // Fetch comments without join to avoid query syntax issues
+  const { data: comments, error } = await supabase
     .from('project_task_comments')
-    .select('*, user:profiles(id, full_name, avatar_url)')
+    .select('*')
     .in('task_id', taskIds)
     .order('created_at', { ascending: true });
 
-  if (!comments) return tasks;
+  if (error) {
+    console.error('Error fetching comments:', error);
+    return tasks;
+  }
+
+  if (!comments || comments.length === 0) return tasks;
 
   // Get user IDs for comments
   const userIds = new Set<string>();

@@ -71,6 +71,14 @@ import {
   deleteProjectTask,
   getProjectTaskMetadata,
 } from '@/lib/api/project-tasks';
+import {
+  getCustomProperties,
+  createCustomProperty,
+  updateCustomProperty,
+  deleteCustomProperty,
+  setCustomPropertyValue,
+} from '@/lib/api/custom-properties';
+import type { CustomProperty } from '@/lib/types/project-tasks';
 
 interface ProjectTaskTrackerProps {
   projectId: string;
@@ -97,6 +105,7 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
     labels: string[];
     teams: string[];
   }>({ tags: [], labels: [], teams: [] });
+  const [customProperties, setCustomProperties] = useState<CustomProperty[]>([]);
   
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -105,6 +114,22 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
   const [showFilters, setShowFilters] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  
+  // Custom column management
+  const [isCustomColumnDialogOpen, setIsCustomColumnDialogOpen] = useState(false);
+  const [editingCustomProperty, setEditingCustomProperty] = useState<CustomProperty | null>(null);
+  const [newCustomProperty, setNewCustomProperty] = useState<{
+    property_name: string;
+    property_type: 'text' | 'number' | 'date' | 'dropdown' | 'tags' | 'boolean' | 'url';
+    property_options?: string[];
+    is_required: boolean;
+  }>({
+    property_name: '',
+    property_type: 'text',
+    property_options: [],
+    is_required: false,
+  });
+  const [propertyOptionsText, setPropertyOptionsText] = useState<string>('');
 
   // Form states
   const [newTask, setNewTask] = useState<CreateTaskInput>({
@@ -119,6 +144,7 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
   useEffect(() => {
     loadTasks();
     loadMetadata();
+    loadCustomProperties();
   }, [projectId, filters, sort, groupBy, searchQuery]);
 
   // Reset form when dialog opens/closes
@@ -189,6 +215,284 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
       setMetadata(data);
     } catch (error) {
       console.error('Error loading metadata', error);
+    }
+  };
+
+  const loadCustomProperties = async () => {
+    try {
+      const data = await getCustomProperties(projectId);
+      setCustomProperties(data);
+    } catch (error) {
+      console.error('Error loading custom properties', error);
+    }
+  };
+
+  const handleCreateCustomProperty = async () => {
+    if (!newCustomProperty.property_name.trim()) {
+      toast.error('Property name is required');
+      return;
+    }
+
+    try {
+      const maxOrder = customProperties.length > 0 
+        ? Math.max(...customProperties.map(p => p.display_order)) 
+        : 0;
+      
+      // Process options text into array
+      const options = propertyOptionsText
+        .split('\n')
+        .map((o) => o.trim())
+        .filter((o) => o.length > 0);
+      
+      await createCustomProperty(projectId, {
+        ...newCustomProperty,
+        property_options: (newCustomProperty.property_type === 'dropdown' || newCustomProperty.property_type === 'tags') ? options : undefined,
+        display_order: maxOrder + 1,
+      });
+      toast.success('Custom column created successfully');
+      setNewCustomProperty({
+        property_name: '',
+        property_type: 'text',
+        property_options: [],
+        is_required: false,
+      });
+      setPropertyOptionsText('');
+      setIsCustomColumnDialogOpen(false);
+      loadCustomProperties();
+    } catch (error: any) {
+      console.error('Error creating custom property', error);
+      toast.error(error?.message || 'Failed to create custom column');
+    }
+  };
+
+  const handleDeleteCustomProperty = async (propertyId: string) => {
+    if (!confirm('Are you sure you want to delete this custom column? This will remove all values for this column.')) {
+      return;
+    }
+
+    try {
+      await deleteCustomProperty(propertyId);
+      toast.success('Custom column deleted successfully');
+      loadCustomProperties();
+    } catch (error: any) {
+      console.error('Error deleting custom property', error);
+      toast.error(error?.message || 'Failed to delete custom column');
+    }
+  };
+
+  const handleUpdateCustomPropertyValue = async (
+    taskId: string,
+    propertyId: string,
+    value: any,
+    propertyType: string
+  ) => {
+    try {
+      await setCustomPropertyValue(taskId, propertyId, value, propertyType);
+      loadTasks();
+    } catch (error: any) {
+      console.error('Error updating custom property value', error);
+      toast.error('Failed to update value');
+    }
+  };
+
+  const renderCustomPropertyCell = (taskId: string, prop: CustomProperty, value: any) => {
+    switch (prop.property_type) {
+      case 'text':
+        return (
+          <Input
+            type="text"
+            defaultValue={value || ''}
+            key={`${taskId}-${prop.id}-${value || ''}`} // Force re-render when value changes
+            onBlur={(e) => {
+              const newValue = e.target.value.trim();
+              handleUpdateCustomPropertyValue(taskId, prop.id, newValue || null, 'text');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            placeholder="Enter text..."
+            className="w-[150px]"
+          />
+        );
+      case 'number':
+        return (
+          <Input
+            type="number"
+            defaultValue={value || ''}
+            key={`${taskId}-${prop.id}-${value || ''}`} // Force re-render when value changes
+            onBlur={(e) => {
+              const newValue = e.target.value ? parseFloat(e.target.value) : null;
+              handleUpdateCustomPropertyValue(taskId, prop.id, newValue, 'number');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            placeholder="0"
+            className="w-[120px]"
+          />
+        );
+      case 'date':
+        return (
+          <Input
+            type="date"
+            value={value ? new Date(value).toISOString().split('T')[0] : ''}
+            onChange={(e) => {
+              const newValue = e.target.value ? new Date(e.target.value).toISOString() : null;
+              handleUpdateCustomPropertyValue(taskId, prop.id, newValue, 'date');
+            }}
+            className="w-[150px]"
+          />
+        );
+      case 'boolean':
+        return (
+          <Checkbox
+            checked={value || false}
+            onCheckedChange={(checked) => {
+              handleUpdateCustomPropertyValue(taskId, prop.id, checked, 'boolean');
+            }}
+          />
+        );
+      case 'dropdown':
+        return (
+          <Select
+            value={value || ''}
+            onValueChange={(newValue) => {
+              handleUpdateCustomPropertyValue(taskId, prop.id, newValue, 'dropdown');
+            }}
+          >
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {prop.property_options?.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case 'tags':
+        const tags = Array.isArray(value) ? value : [];
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-[150px] justify-start">
+                {tags.length > 0 ? (
+                  <div className="flex gap-1 flex-wrap max-w-[120px] overflow-hidden">
+                    {tags.slice(0, 2).map((tag: string, idx: number) => (
+                      <Badge key={idx} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {tags.length > 2 && <span className="text-xs">+{tags.length - 2}</span>}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">Add tags...</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px]">
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {tags.map((tag: string, idx: number) => (
+                    <div
+                      key={`${tag}-${idx}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-secondary text-secondary-foreground text-xs"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        className="ml-0.5 h-4 w-4 flex items-center justify-center rounded-full hover:bg-destructive/20 transition-colors focus:outline-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const newTags = tags.filter((_, i) => i !== idx);
+                          handleUpdateCustomPropertyValue(taskId, prop.id, newTags, 'tags').catch((err) => {
+                            console.error('Failed to remove tag:', err);
+                            toast.error('Failed to remove tag');
+                          });
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                        aria-label={`Remove ${tag} tag`}
+                      >
+                        <X className="h-3 w-3 hover:text-destructive" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {prop.property_options && prop.property_options.length > 0 ? (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Available tags:</Label>
+                      <div className="flex gap-1 flex-wrap">
+                        {prop.property_options
+                          .filter((opt) => !tags.includes(opt))
+                          .map((option) => (
+                            <Badge
+                              key={option}
+                              variant="outline"
+                              className="text-xs cursor-pointer hover:bg-primary hover:text-primary-foreground"
+                              onClick={() => {
+                                handleUpdateCustomPropertyValue(taskId, prop.id, [...tags, option], 'tags');
+                              }}
+                            >
+                              {option}
+                            </Badge>
+                          ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add tag..."
+                      defaultValue=""
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                          const newTag = e.currentTarget.value.trim();
+                          if (!tags.includes(newTag)) {
+                            handleUpdateCustomPropertyValue(taskId, prop.id, [...tags, newTag], 'tags');
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      case 'url':
+        return (
+          <Input
+            type="url"
+            defaultValue={value || ''}
+            key={`${taskId}-${prop.id}-${value || ''}`} // Force re-render when value changes
+            onBlur={(e) => {
+              const newValue = e.target.value.trim();
+              handleUpdateCustomPropertyValue(taskId, prop.id, newValue || null, 'url');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            placeholder="https://..."
+            className="w-[180px]"
+          />
+        );
+      default:
+        return <span className="text-sm text-muted-foreground">-</span>;
     }
   };
 
@@ -265,13 +569,15 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
 
   const handleUpdateTask = async (taskId: string, updates: UpdateTaskInput) => {
     try {
+      console.log('Updating task:', taskId, 'with updates:', updates);
       await updateProjectTask(taskId, updates);
       toast.success('Task updated successfully');
       loadTasks();
       loadMetadata();
     } catch (error: any) {
       console.error('Error updating task', error);
-      toast.error('Failed to update task');
+      const errorMessage = error?.message || error?.error?.message || 'Failed to update task';
+      toast.error(errorMessage);
     }
   };
 
@@ -320,15 +626,33 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
     }
 
     setFormErrors({});
+    
+    // Normalize priority to P1-P5 format
+    let normalizedPriority: TaskPriority = 'P2'; // Default
+    if (editingTask.priority_label) {
+      // Use priority_label if available (P1, P2, P3, P4, P5)
+      normalizedPriority = editingTask.priority_label as TaskPriority;
+    } else if (editingTask.priority) {
+      // Convert old format to new format
+      const priorityMap: Record<string, TaskPriority> = {
+        'high': 'P1',
+        'medium': 'P2',
+        'low': 'P3',
+      };
+      normalizedPriority = priorityMap[editingTask.priority] || 'P2';
+    }
+    
     const updates: UpdateTaskInput = {
       title: editingTask.title,
       description: editingTask.description,
       status: editingTask.status,
-      priority: editingTask.priority,
+      priority: normalizedPriority,
       due_date: editingTask.due_date || undefined,
       assigned_to: editingTask.assigned_to || undefined,
+      assigned_team: editingTask.assigned_team || undefined,
       tags: editingTask.tags,
       labels: editingTask.labels,
+      supporting_links: editingTask.supporting_links,
     };
 
     setIsSubmitting(true);
@@ -705,19 +1029,140 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">ID</th>
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap min-w-[300px]">Task</th>
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Status</th>
-                        <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Priority</th>
+                        <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap min-w-[130px]">Priority</th>
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Team</th>
-                        <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Assignee</th>
+                        <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap min-w-[220px]">Assignee</th>
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Due Date & Time</th>
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Links</th>
                         <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap">Tags</th>
-                        <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap w-[80px]"></th>
+                        {customProperties.map((prop) => (
+                          <th key={prop.id} className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap relative group min-w-[150px]">
+                            <div className="flex items-center gap-2">
+                              <span>{prop.property_name}</span>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100">
+                                    <MoreVertical className="h-3 w-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteCustomProperty(prop.id)}
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Column
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </th>
+                        ))}
+                        <th className="text-left px-6 py-4 font-medium text-sm text-muted-foreground whitespace-nowrap w-[80px] relative">
+                          <Dialog 
+                            open={isCustomColumnDialogOpen} 
+                            onOpenChange={(open) => {
+                              setIsCustomColumnDialogOpen(open);
+                              if (!open) {
+                                setPropertyOptionsText('');
+                              }
+                            }}
+                          >
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Add Custom Column">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md">
+                              <DialogHeader>
+                                <DialogTitle>Add Custom Column</DialogTitle>
+                                <DialogDescription>
+                                  Create a new custom column with a specific data type
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="property_name">Column Name *</Label>
+                                  <Input
+                                    id="property_name"
+                                    value={newCustomProperty.property_name}
+                                    onChange={(e) =>
+                                      setNewCustomProperty({ ...newCustomProperty, property_name: e.target.value })
+                                    }
+                                    placeholder="e.g., Category, Budget, Owner"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="property_type">Data Type *</Label>
+                                  <Select
+                                    value={newCustomProperty.property_type}
+                                    onValueChange={(value: any) => {
+                                      setNewCustomProperty({ ...newCustomProperty, property_type: value });
+                                      // Reset options text when type changes
+                                      if (value !== 'dropdown' && value !== 'tags') {
+                                        setPropertyOptionsText('');
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="text">Text</SelectItem>
+                                      <SelectItem value="number">Number</SelectItem>
+                                      <SelectItem value="date">Date</SelectItem>
+                                      <SelectItem value="boolean">Checkbox</SelectItem>
+                                      <SelectItem value="dropdown">Dropdown</SelectItem>
+                                      <SelectItem value="tags">Tags</SelectItem>
+                                      <SelectItem value="url">URL</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {(newCustomProperty.property_type === 'dropdown' || newCustomProperty.property_type === 'tags') && (
+                                  <div className="space-y-2">
+                                    <Label>Options (one per line)</Label>
+                                    <Textarea
+                                      value={propertyOptionsText}
+                                      onChange={(e) => {
+                                        // Allow free typing with Enter key for new lines
+                                        setPropertyOptionsText(e.target.value);
+                                      }}
+                                      placeholder="Option 1&#10;Option 2&#10;Option 3"
+                                      rows={4}
+                                    />
+                                  </div>
+                                )}
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id="is_required"
+                                    checked={newCustomProperty.is_required}
+                                    onCheckedChange={(checked) =>
+                                      setNewCustomProperty({ ...newCustomProperty, is_required: checked as boolean })
+                                    }
+                                  />
+                                  <Label htmlFor="is_required" className="cursor-pointer">
+                                    Required field
+                                  </Label>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => {
+                                  setIsCustomColumnDialogOpen(false);
+                                  setPropertyOptionsText('');
+                                }}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleCreateCustomProperty}>Create Column</Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                         {groupTasks.length === 0 ? (
                           <tr>
-                            <td colSpan={10} className="px-6 py-8 text-center text-muted-foreground">
+                            <td colSpan={10 + customProperties.length} className="px-6 py-8 text-center text-muted-foreground">
                               No tasks found
                             </td>
                           </tr>
@@ -758,24 +1203,9 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                                     </div>
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="todo">
-                                      <div className="flex items-center gap-2">
-                                        <Circle className="h-4 w-4" />
-                                        To Do
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="in-progress">
-                                      <div className="flex items-center gap-2">
-                                        <PlayCircle className="h-4 w-4" />
-                                        In Progress
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="completed">
-                                      <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        Completed
-                                      </div>
-                                    </SelectItem>
+                                    <SelectItem value="todo">To Do</SelectItem>
+                                    <SelectItem value="in-progress">In Progress</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </td>
@@ -786,8 +1216,8 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                                     handleUpdateTask(task.id, { priority: value as TaskPriority })
                                   }
                                 >
-                                  <SelectTrigger className="w-[90px]">
-                                    <Badge className={getPriorityColor(task.priority_label || task.priority || 'P2')}>
+                                  <SelectTrigger className="w-[130px] min-w-[130px]">
+                                    <Badge className={getPriorityColor(task.priority_label || task.priority || 'P2') + ' whitespace-nowrap'}>
                                       <SelectValue />
                                     </Badge>
                                   </SelectTrigger>
@@ -803,10 +1233,17 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <Input
                                   type="text"
-                                  value={task.assigned_team || ''}
-                                  onChange={(e) =>
-                                    handleUpdateTask(task.id, { assigned_team: e.target.value || undefined })
-                                  }
+                                  defaultValue={task.assigned_team || ''}
+                                  key={`${task.id}-team-${task.assigned_team || ''}`} // Force re-render when value changes
+                                  onBlur={(e) => {
+                                    const value = e.target.value.trim();
+                                    handleUpdateTask(task.id, { assigned_team: value || undefined });
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
                                   placeholder="Team name"
                                   className="w-[140px]"
                                 />
@@ -818,16 +1255,16 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                                     handleUpdateTask(task.id, { assigned_to: value === '__unassigned__' ? undefined : value })
                                   }
                                 >
-                                  <SelectTrigger className="w-[150px]">
+                                  <SelectTrigger className="w-[220px] min-w-[220px] max-w-[220px]">
                                     {task.assignee ? (
-                                      <div className="flex items-center gap-2">
-                                        <Avatar className="h-5 w-5">
+                                      <div className="flex items-center gap-2 min-w-0 w-full">
+                                        <Avatar className="h-5 w-5 flex-shrink-0">
                                           <AvatarImage src={task.assignee.avatar_url} />
                                           <AvatarFallback>
                                             {task.assignee.full_name?.[0]?.toUpperCase() || '?'}
                                           </AvatarFallback>
                                         </Avatar>
-                                        <span className="truncate">{task.assignee.full_name}</span>
+                                        <span className="truncate flex-1 min-w-0">{task.assignee.full_name}</span>
                                       </div>
                                     ) : (
                                       <SelectValue placeholder="Unassigned" />
@@ -889,6 +1326,14 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                                   ))}
                                 </div>
                               </td>
+                              {customProperties.map((prop) => {
+                                const value = task.custom_properties?.[prop.property_name];
+                                return (
+                                  <td key={prop.id} className="px-6 py-4 whitespace-nowrap">
+                                    {renderCustomPropertyCell(task.id, prop, value)}
+                                  </td>
+                                );
+                              })}
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -1095,7 +1540,7 @@ function TaskForm({ task, onChange, members, metadata, errors = {} }: TaskFormPr
         <div className="space-y-2">
           <Label htmlFor="priority">Priority</Label>
           <Select
-            value={task.priority || 'P2'}
+            value={task.priority_label || (task.priority ? (task.priority === 'high' ? 'P1' : task.priority === 'medium' ? 'P2' : 'P3') : 'P2') || 'P2'}
             onValueChange={(value) => onChange({ priority: value as TaskPriority })}
           >
             <SelectTrigger>
@@ -1204,12 +1649,24 @@ function TaskForm({ task, onChange, members, metadata, errors = {} }: TaskFormPr
         <Label>Tags</Label>
         <div className="flex gap-2 flex-wrap mb-2">
           {task.tags?.map((tag, idx) => (
-            <Badge key={idx} variant="secondary" className="gap-1">
-              {tag}
-              <X
-                className="h-3 w-3 cursor-pointer"
-                onClick={() => removeTag(tag)}
-              />
+            <Badge key={idx} variant="secondary" className="gap-1 pr-1">
+              <span>{tag}</span>
+              <button
+                type="button"
+                className="ml-0.5 h-4 w-4 flex items-center justify-center rounded-full hover:bg-destructive/20 transition-colors focus:outline-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  removeTag(tag);
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                aria-label={`Remove ${tag} tag`}
+              >
+                <X className="h-3 w-3 hover:text-destructive" />
+              </button>
             </Badge>
           ))}
         </div>
@@ -1233,12 +1690,24 @@ function TaskForm({ task, onChange, members, metadata, errors = {} }: TaskFormPr
         <Label>Labels</Label>
         <div className="flex gap-2 flex-wrap mb-2">
           {task.labels?.map((label, idx) => (
-            <Badge key={idx} variant="outline" className="gap-1">
-              {label}
-              <X
-                className="h-3 w-3 cursor-pointer"
-                onClick={() => removeLabel(label)}
-              />
+            <Badge key={idx} variant="outline" className="gap-1 pr-1">
+              <span>{label}</span>
+              <button
+                type="button"
+                className="ml-0.5 h-4 w-4 flex items-center justify-center rounded-full hover:bg-destructive/20 transition-colors focus:outline-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  removeLabel(label);
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                aria-label={`Remove ${label} label`}
+              >
+                <X className="h-3 w-3 hover:text-destructive" />
+              </button>
             </Badge>
           ))}
         </div>

@@ -112,7 +112,7 @@ export async function setCustomPropertyValue(
       break;
     case 'tags':
     case 'dropdown':
-      valueData.value_array = Array.isArray(value) ? value : [value];
+      valueData.value_array = Array.isArray(value) ? value : (value ? [value] : []);
       break;
     default:
       valueData.value_text = value;
