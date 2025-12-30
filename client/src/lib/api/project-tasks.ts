@@ -385,6 +385,25 @@ async function enrichTasksWithCustomProperties(tasks: ProjectTask[]): Promise<Pr
         case 'dropdown':
           value = v.value_array;
           break;
+        case 'media':
+          // Media values are stored as JSON array in value_array
+          // PostgreSQL text[] might return items as strings, so we need to parse them
+          if (Array.isArray(v.value_array)) {
+            value = v.value_array.map((item: any) => {
+              // If item is a string, try to parse it as JSON
+              if (typeof item === 'string') {
+                try {
+                  return JSON.parse(item);
+                } catch {
+                  return item;
+                }
+              }
+              return item;
+            });
+          } else {
+            value = v.value_array;
+          }
+          break;
         case 'url':
           value = v.value_text;
           break;

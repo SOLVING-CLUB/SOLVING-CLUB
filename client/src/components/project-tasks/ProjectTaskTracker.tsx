@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,6 +52,9 @@ import {
   CheckCircle2,
   Circle,
   PlayCircle,
+  Upload,
+  Image as ImageIcon,
+  Video,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -79,6 +82,8 @@ import {
   setCustomPropertyValue,
 } from '@/lib/api/custom-properties';
 import type { CustomProperty } from '@/lib/types/project-tasks';
+import { MediaViewer } from './MediaViewer';
+import { TaskDetailView } from './TaskDetailView';
 
 interface ProjectTaskTrackerProps {
   projectId: string;
@@ -110,17 +115,20 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingTask, setViewingTask] = useState<ProjectTask | null>(null);
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'image' | 'video'; fileName?: string } | null>(null);
   
   // Custom column management
   const [isCustomColumnDialogOpen, setIsCustomColumnDialogOpen] = useState(false);
   const [editingCustomProperty, setEditingCustomProperty] = useState<CustomProperty | null>(null);
   const [newCustomProperty, setNewCustomProperty] = useState<{
     property_name: string;
-    property_type: 'text' | 'number' | 'date' | 'dropdown' | 'tags' | 'boolean' | 'url';
+    property_type: 'text' | 'number' | 'date' | 'dropdown' | 'tags' | 'boolean' | 'url' | 'media';
     property_options?: string[];
     is_required: boolean;
   }>({
@@ -491,6 +499,420 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
             className="w-[180px]"
           />
         );
+      case 'media': {
+        const mediaFiles = Array.isArray(value) ? value : (value ? [value] : []);
+        const fileInputId = `media-input-${taskId}-${prop.id}`;
+        
+        const handleFileUpload = async (file: File) => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+              toast.error('You must be logged in to upload files');
+              return;
+            }
+
+            // Check if file is image or video
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+            
+            if (!isImage && !isVideo) {
+              toast.error('Please upload an image or video file');
+              return;
+            }
+
+            // Validate file size (max 50MB)
+            const maxSize = 50 * 1024 * 1024; // 50MB
+            if (file.size > maxSize) {
+              toast.error('File size must be less than 50MB');
+              return;
+            }
+
+            // Create a unique file path
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+            const filePath = `projects/${projectId}/task-media/${taskId}/${fileName}`;
+
+            console.log('📤 Uploading file to Supabase Storage:', {
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type,
+              filePath,
+            });
+
+            // Upload file to Supabase Storage
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('project-files')
+              .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false, // Don't overwrite existing files
+              });
+
+            if (uploadError) {
+              console.error('❌ Upload error:', uploadError);
+              toast.error(`Failed to upload file: ${uploadError.message || 'Unknown error'}`);
+              return;
+            }
+
+            if (!uploadData) {
+              console.error('❌ Upload failed: No data returned');
+              toast.error('Failed to upload file: No response from server');
+              return;
+            }
+
+            console.log('✅ File uploaded successfully:', {
+              path: uploadData.path,
+              id: uploadData.id,
+            });
+
+            // Verify the file exists in storage
+            const { data: verifyData, error: verifyError } = await supabase.storage
+              .from('project-files')
+              .list(filePath.split('/').slice(0, -1).join('/'), {
+                limit: 100,
+                search: fileName,
+              });
+
+            if (verifyError) {
+              console.warn('⚠️ Could not verify file upload:', verifyError);
+            } else {
+              const fileExists = verifyData?.some(item => item.name === fileName);
+              if (!fileExists) {
+                console.warn('⚠️ File not found in storage after upload');
+              } else {
+                console.log('✅ File verified in storage');
+              }
+            }
+
+            // Store file metadata in database
+            const mediaItem = {
+              file_path: filePath,
+              file_name: file.name,
+              file_type: file.type,
+              file_size: file.size,
+              uploaded_at: new Date().toISOString(),
+              // Note: We'll generate signed URLs on-demand for security
+            };
+
+            console.log('💾 Saving media metadata to database:', mediaItem);
+
+            const newMediaFiles = [...mediaFiles, mediaItem];
+            await handleUpdateCustomPropertyValue(taskId, prop.id, newMediaFiles, 'media');
+            
+            console.log('✅ Media metadata saved successfully');
+            toast.success('File uploaded and saved successfully');
+            
+            // Reload tasks to show the new media
+            loadTasks();
+          } catch (error: any) {
+            console.error('❌ Error uploading file:', error);
+            toast.error(`Failed to upload file: ${error?.message || 'Unknown error'}`);
+          }
+        };
+
+        const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement> | { target: { files: FileList | null } }) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleFileUpload(file);
+          }
+          // Reset input
+          const input = document.getElementById(fileInputId) as HTMLInputElement;
+          if (input) {
+            input.value = '';
+          }
+        };
+
+        const handleRemoveMedia = async (index: number) => {
+          try {
+            const mediaItem = mediaFiles[index];
+            if (mediaItem && mediaItem.file_path) {
+              // Delete from storage
+              await supabase.storage
+                .from('project-files')
+                .remove([mediaItem.file_path]);
+            }
+            
+            const newMediaFiles = mediaFiles.filter((_, i) => i !== index);
+            await handleUpdateCustomPropertyValue(taskId, prop.id, newMediaFiles.length > 0 ? newMediaFiles : null, 'media');
+            toast.success('File removed');
+          } catch (error: any) {
+            console.error('Error removing file:', error);
+            toast.error('Failed to remove file');
+          }
+        };
+
+        const getMediaType = (mediaItem: any): 'image' | 'video' => {
+          if (typeof mediaItem === 'string') {
+            // If it's just a URL string, try to determine from extension
+            const url = mediaItem.toLowerCase();
+            if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) return 'image';
+            if (url.match(/\.(mp4|webm|ogg|mov)$/)) return 'video';
+            return 'image'; // Default
+          }
+          if (mediaItem.file_type) {
+            return mediaItem.file_type.startsWith('image/') ? 'image' : 'video';
+          }
+          return 'image';
+        };
+
+        // Helper function to get media URL (generates signed URL or blob URL)
+        const getMediaUrlAsync = async (mediaItem: any): Promise<string> => {
+          try {
+            // If it's already a URL string, use it directly
+            if (typeof mediaItem === 'string') {
+              console.log('📷 Using direct URL string:', mediaItem);
+              return mediaItem;
+            }
+            
+            // If file_url exists, use it (for backward compatibility)
+            if (mediaItem.file_url || mediaItem.url) {
+              console.log('📷 Using existing file_url:', mediaItem.file_url || mediaItem.url);
+              return mediaItem.file_url || mediaItem.url;
+            }
+
+            // For private bucket, try signed URL first, then fallback to download
+            if (mediaItem.file_path) {
+              console.log('🔐 Attempting to get URL for:', mediaItem.file_path);
+              
+              // Try signed URL first (works for images in <img> tags)
+              const { data: signedData, error: signedError } = await supabase.storage
+                .from('project-files')
+                .createSignedUrl(mediaItem.file_path, 3600); // 1 hour expiry
+
+              if (!signedError && signedData?.signedUrl) {
+                console.log('✅ Signed URL generated successfully');
+                return signedData.signedUrl;
+              }
+
+              // If signed URL fails, try download and create blob URL (for images)
+              if (mediaItem.file_type?.startsWith('image/')) {
+                console.log('🔄 Signed URL failed, trying download for image...');
+                const { data: blobData, error: downloadError } = await supabase.storage
+                  .from('project-files')
+                  .download(mediaItem.file_path);
+
+                if (downloadError) {
+                  console.error('❌ Error downloading file:', {
+                    error: downloadError,
+                    file_path: mediaItem.file_path,
+                    errorMessage: downloadError.message,
+                  });
+                  return '';
+                }
+
+                if (blobData) {
+                  const blobUrl = URL.createObjectURL(blobData);
+                  console.log('✅ Blob URL created from download');
+                  // Store blob URL cleanup in a ref or cleanup function
+                  return blobUrl;
+                }
+              }
+
+              // Log the error for signed URL
+              if (signedError) {
+                console.error('❌ Error creating signed URL:', {
+                  error: signedError,
+                  file_path: mediaItem.file_path,
+                  errorMessage: signedError.message,
+                  errorCode: signedError.statusCode,
+                });
+              }
+
+              return '';
+            }
+
+            console.warn('⚠️ No file_path in mediaItem:', mediaItem);
+            return '';
+          } catch (err: any) {
+            console.error('❌ Exception in getMediaUrlAsync:', err);
+            return '';
+          }
+        };
+
+        const getMediaFileName = (mediaItem: any): string => {
+          if (typeof mediaItem === 'string') return 'Media';
+          return mediaItem.file_name || mediaItem.name || 'Media';
+        };
+
+        // Component to render media preview with signed URL
+        const MediaPreviewCell = ({ mediaItem, idx }: { mediaItem: any; idx: number }) => {
+          const [mediaUrl, setMediaUrl] = useState<string>('');
+          const [loading, setLoading] = useState(true);
+          const [error, setError] = useState(false);
+          const blobUrlRef = useRef<string | null>(null);
+
+          useEffect(() => {
+            let mounted = true;
+
+            const loadUrl = async () => {
+              try {
+                setLoading(true);
+                setError(false);
+                console.log('🔄 Loading media URL for:', {
+                  file_path: mediaItem?.file_path,
+                  file_name: mediaItem?.file_name,
+                });
+                const url = await getMediaUrlAsync(mediaItem);
+                console.log('📥 URL result:', url ? `${url.substring(0, 50)}...` : 'EMPTY');
+                if (mounted) {
+                  if (url && url.trim()) {
+                    // Check if it's a blob URL (starts with blob:)
+                    if (url.startsWith('blob:')) {
+                      blobUrlRef.current = url;
+                    }
+                    setMediaUrl(url);
+                    console.log('✅ Media URL set successfully');
+                  } else {
+                    console.error('❌ Empty URL returned, setting error state');
+                    setError(true);
+                  }
+                  setLoading(false);
+                }
+              } catch (err) {
+                console.error('❌ Exception in loadUrl:', err);
+                if (mounted) {
+                  setError(true);
+                  setLoading(false);
+                }
+              }
+            };
+
+            loadUrl();
+
+            return () => {
+              mounted = false;
+              // Cleanup blob URL if it exists
+              if (blobUrlRef.current) {
+                URL.revokeObjectURL(blobUrlRef.current);
+                blobUrlRef.current = null;
+              }
+            };
+          }, [mediaItem]);
+
+          const mediaType = getMediaType(mediaItem);
+          const fileName = getMediaFileName(mediaItem);
+
+          if (loading) {
+            return (
+              <div className="w-16 h-16 rounded border bg-muted flex items-center justify-center">
+                <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            );
+          }
+
+          if (error || !mediaUrl) {
+            return (
+              <div className="w-16 h-16 rounded border bg-muted flex items-center justify-center">
+                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+              </div>
+            );
+          }
+
+          return (
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  console.log('🖱️ Clicked on media preview:', {
+                    hasMediaUrl: !!mediaUrl,
+                    mediaUrlLength: mediaUrl?.length || 0,
+                    mediaItem,
+                    mediaType,
+                    fileName,
+                  });
+                  
+                  // Ensure we have a valid URL (regenerate if needed)
+                  let urlToView = mediaUrl;
+                  if (!urlToView || !urlToView.trim()) {
+                    console.log('🔄 No URL in state, regenerating for full-screen view...');
+                    if (mediaItem?.file_path) {
+                      urlToView = await getMediaUrlAsync(mediaItem);
+                      console.log('📥 Regenerated URL:', urlToView ? `${urlToView.substring(0, 50)}...` : 'EMPTY');
+                    }
+                  }
+                  
+                  if (urlToView && urlToView.trim()) {
+                    console.log('✅ Opening media viewer with URL:', { 
+                      urlLength: urlToView.length,
+                      urlPreview: urlToView.substring(0, 80) + '...', 
+                      mediaType, 
+                      fileName 
+                    });
+                    setViewingMedia({ url: urlToView, type: mediaType, fileName });
+                    console.log('📊 viewingMedia state set, should open dialog now');
+                  } else {
+                    console.error('❌ Cannot open viewer: No valid URL', {
+                      urlToView,
+                      mediaItem,
+                    });
+                    toast.error('Failed to load media for full-screen view. Please try again.');
+                  }
+                }}
+                className="relative w-16 h-16 rounded border overflow-hidden hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                {mediaType === 'image' ? (
+                  <img
+                    src={mediaUrl}
+                    alt={fileName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error('❌ Image load error:', {
+                        mediaUrl: mediaUrl ? `${mediaUrl.substring(0, 100)}...` : 'EMPTY',
+                        mediaItem,
+                        error: e,
+                        target: e.target,
+                      });
+                      setError(true);
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <Video className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveMedia(idx);
+                }}
+                className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        };
+
+        return (
+          <div className="flex gap-2 items-center flex-wrap min-w-[200px] max-w-[300px]">
+            {mediaFiles.map((mediaItem: any, idx: number) => (
+              <MediaPreviewCell key={idx} mediaItem={mediaItem} idx={idx} />
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                const input = document.getElementById(fileInputId) as HTMLInputElement;
+                input?.click();
+              }}
+              className="w-16 h-16 rounded border-2 border-dashed flex items-center justify-center hover:bg-muted transition-colors"
+              title="Upload media"
+            >
+              <Upload className="h-5 w-5 text-muted-foreground" />
+            </button>
+            <input
+              id={fileInputId}
+              type="file"
+              accept="image/*,video/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        );
+      }
       default:
         return <span className="text-sm text-muted-foreground">-</span>;
     }
@@ -593,6 +1015,11 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
       console.error('Error deleting task', error);
       toast.error('Failed to delete task');
     }
+  };
+
+  const handleViewTask = (task: ProjectTask) => {
+    setViewingTask(task);
+    setIsViewDialogOpen(true);
   };
 
   const handleEditTask = (task: ProjectTask) => {
@@ -1115,6 +1542,7 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                                       <SelectItem value="dropdown">Dropdown</SelectItem>
                                       <SelectItem value="tags">Tags</SelectItem>
                                       <SelectItem value="url">URL</SelectItem>
+                                      <SelectItem value="media">Media (Image/Video)</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -1171,14 +1599,14 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
                             <tr key={task.id} className="border-b hover:bg-muted/50 transition-colors">
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="font-medium text-muted-foreground">
-                                  #{task.task_number || '-'}
+                                  {task.task_number || '-'}
                                 </div>
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex flex-col gap-2 min-w-[300px] max-w-[400px]">
                                   <div
                                     className="font-medium cursor-pointer hover:text-primary transition-colors break-words"
-                                    onClick={() => handleEditTask(task)}
+                                    onClick={() => handleViewTask(task)}
                                   >
                                     {task.title}
                                   </div>
@@ -1441,6 +1869,37 @@ export function ProjectTaskTracker({ projectId, members }: ProjectTaskTrackerPro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Task Detail View Dialog */}
+      <TaskDetailView
+        task={viewingTask}
+        isOpen={isViewDialogOpen}
+        onClose={() => {
+          setIsViewDialogOpen(false);
+          setViewingTask(null);
+        }}
+        onEdit={() => {
+          if (viewingTask) {
+            setIsViewDialogOpen(false);
+            setEditingTask(viewingTask);
+            setIsEditDialogOpen(true);
+          }
+        }}
+        customProperties={customProperties}
+        members={members}
+      />
+      
+      {/* Media Viewer - Always render for Radix UI Dialog to work */}
+      <MediaViewer
+        isOpen={!!viewingMedia}
+        onClose={() => {
+          console.log('🔄 Closing media viewer');
+          setViewingMedia(null);
+        }}
+        mediaUrl={viewingMedia?.url || ''}
+        mediaType={viewingMedia?.type || 'image'}
+        fileName={viewingMedia?.fileName}
+      />
     </div>
   );
 }

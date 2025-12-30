@@ -114,20 +114,50 @@ export async function setCustomPropertyValue(
     case 'dropdown':
       valueData.value_array = Array.isArray(value) ? value : (value ? [value] : []);
       break;
+    case 'media':
+      // Media values are stored as JSON array in value_array
+      // Each item is an object with file_path, file_name, file_type, file_size, uploaded_at
+      // Note: file_path is the key - it's used to generate signed URLs on-demand
+      const mediaArray = Array.isArray(value) ? value : (value ? [value] : []);
+      // Validate media items have required fields
+      const validMediaArray = mediaArray.filter((item: any) => {
+        if (typeof item === 'string') return true; // Legacy support
+        return item && item.file_path; // Must have file_path
+      });
+      valueData.value_array = validMediaArray;
+      console.log('💾 Storing media array in database:', {
+        propertyId,
+        taskId,
+        mediaCount: validMediaArray.length,
+        mediaItems: validMediaArray.map((m: any) => ({
+          file_path: typeof m === 'string' ? m : m.file_path,
+          file_name: typeof m === 'string' ? 'Unknown' : m.file_name,
+        })),
+      });
+      break;
     default:
       valueData.value_text = value;
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('project_task_custom_values')
     .upsert(valueData, {
       onConflict: 'task_id,property_id',
-    });
+    })
+    .select();
 
   if (error) {
-    console.error('Error setting custom property value', error);
+    console.error('❌ Error setting custom property value:', error);
+    console.error('Failed value data:', valueData);
     throw error;
   }
+
+  console.log('✅ Custom property value saved successfully:', {
+    taskId,
+    propertyId,
+    propertyType,
+    savedData: data?.[0],
+  });
 }
 
 /**

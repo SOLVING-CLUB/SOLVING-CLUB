@@ -59,7 +59,7 @@ export interface CustomProperty {
   id: string;
   project_id: string;
   property_name: string;
-  property_type: 'text' | 'number' | 'date' | 'dropdown' | 'tags' | 'boolean' | 'url';
+  property_type: 'text' | 'number' | 'date' | 'dropdown' | 'tags' | 'boolean' | 'url' | 'media';
   property_options?: string[]; // For dropdown options
   display_order: number;
   is_required: boolean;
