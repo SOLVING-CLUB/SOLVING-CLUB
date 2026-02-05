@@ -6,7 +6,6 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
 	Menu, 
 	Home, 
-	User, 
 	Clock, 
 	BookOpen, 
 	FolderOpen, 
@@ -14,9 +13,6 @@ import {
 	Search,
 	DollarSign,
 	Shield,
-	FileText,
-	FileEdit,
-	Calendar,
 	Bell
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -32,10 +28,6 @@ const navigation: Array<{ name: string; href: string; icon: typeof Home; permiss
 	{ name: "Learnings", href: "/dashboard/learnings", icon: BookOpen, permission: "learnings.manage" },
 	{ name: "Hours", href: "/dashboard/hours", icon: Clock, permission: "hours.view" },
 	{ name: "Financial", href: "/dashboard/financial", icon: DollarSign, permission: "financial.view" },
-	{ name: "Profile", href: "/dashboard/profile", icon: User, permission: "profile.manage" },
-	{ name: "Documents", href: "/dashboard/documents", icon: FileText, permission: "documents.manage" },
-	{ name: "Quotations", href: "/dashboard/quotations/create", icon: FileEdit, permission: "quotations.manage" },
-	{ name: "Calendar", href: "/dashboard/calendar", icon: Calendar, permission: "calendar.view" },
 	{ name: "Notifications", href: "/dashboard/notifications", icon: Bell, permission: "dashboard.view" },
 	{ name: "Admin", href: "/dashboard/admin", icon: Shield, permission: "admin.access" },
 ];

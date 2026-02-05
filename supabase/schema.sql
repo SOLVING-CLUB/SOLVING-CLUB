@@ -104,6 +104,7 @@ alter table public.projects add column if not exists client_company text;
 alter table public.projects add column if not exists client_phone text;
 alter table public.projects add column if not exists client_notes text;
 alter table public.projects add column if not exists meeting_link text;
+alter table public.projects add column if not exists documentation text;
 
 -- Project members table
 create table if not exists public.project_members (

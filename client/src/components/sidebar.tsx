@@ -9,16 +9,12 @@ import {
 	LayoutDashboard,
 	BookOpen,
 	Briefcase,
-	User,
 	Clock,
 	LogOut,
 	DollarSign,
 	CheckSquare,
 	Shield,
-	Calendar,
 	Bell,
-	FileText,
-	FileEdit,
 } from "lucide-react";
 
 type NavItem = {
@@ -34,11 +30,7 @@ export const nav: NavItem[] = [
 	{ href: "/dashboard/projects", label: "Projects", icon: Briefcase, permission: "projects.view" },
 	{ href: "/dashboard/global-tasks", label: "Global Tasks", icon: CheckSquare, permission: "global_tasks.manage" },
 	{ href: "/dashboard/financial", label: "Financial", icon: DollarSign, permission: "financial.view" },
-	{ href: "/dashboard/documents", label: "Documents", icon: FileText, permission: "documents.manage" },
-	{ href: "/dashboard/quotations/create", label: "Quotations", icon: FileEdit, permission: "quotations.manage" },
-	{ href: "/dashboard/calendar", label: "Calendar", icon: Calendar, permission: "calendar.view" },
 	{ href: "/dashboard/notifications", label: "Notifications", icon: Bell, permission: "dashboard.view" },
-	{ href: "/dashboard/profile", label: "Profile", icon: User, permission: "profile.manage" },
 	{ href: "/dashboard/hours", label: "Hours", icon: Clock, permission: "hours.view" },
 	{ href: "/dashboard/admin", label: "Admin", icon: Shield, permission: "admin.access" },
 ];

@@ -17,7 +17,13 @@ type AdminUserRow = {
 
 type RoleRow = { id: string; name: string; scope: "global" | "project" };
 type BundleRow = { id: string; name: string; scope: "global" | "project" };
-type PermissionRow = { id: string; key: PermissionKey; scope: "global" | "project" };
+type PermissionRow = {
+	id: string;
+	key: PermissionKey;
+	scope: "global" | "project";
+	module: string | null;
+	description: string | null;
+};
 type ProjectRow = { id: string; name: string };
 type UserRoleRow = { user_id: string; role_id: string; project_id: string | null };
 type UserPermissionRow = { user_id: string; permission_id: string; project_id: string | null };
@@ -86,7 +92,7 @@ export default function AdminPage() {
 			const [rolesRes, bundlesRes, permsRes, projectsRes, userRolesRes, userPermsRes, roleBundlesRes] = await Promise.all([
 				supabase.from("access_roles").select("id, name, scope").order("name"),
 				supabase.from("access_bundles").select("id, name, scope").order("name"),
-				supabase.from("access_permissions").select("id, key, scope").order("key"),
+				supabase.from("access_permissions").select("id, key, scope, module, description").order("key"),
 				supabase.from("projects").select("id, name").order("created_at", { ascending: false }),
 				supabase.from("access_user_roles").select("user_id, role_id, project_id"),
 				supabase.from("access_user_permissions").select("user_id, permission_id, project_id"),
@@ -151,7 +157,9 @@ export default function AdminPage() {
 
 	const roleOptions = roles.map((r) => ({ label: r.name, value: r.id, scope: r.scope }));
 	const bundleOptions = bundles.map((b) => ({ label: b.name, value: b.id, scope: b.scope }));
-	const permissionOptions = permissions.map((p) => ({ label: p.key, value: p.id, scope: p.scope }));
+	const hiddenModules = new Set(["documents", "quotations", "calendar"]);
+	const visiblePermissions = permissions.filter((p) => !hiddenModules.has(p.module ?? ""));
+	const permissionOptions = visiblePermissions.map((p) => ({ label: p.key, value: p.id, scope: p.scope }));
 	const userOptions = rows.map((r) => ({ label: r.full_name || r.email || r.id, value: r.id }));
 
 	const globalRoles = roleOptions.filter((r) => r.scope === "global");
@@ -184,10 +192,40 @@ export default function AdminPage() {
 		const ids = userPermissions
 			.filter((p) => p.user_id === userId && p.project_id == null)
 			.map((p) => p.permission_id);
-		const keys = permissions
+		const keys = visiblePermissions
 			.filter((p) => ids.includes(p.id))
 			.map((p) => p.key);
 		return new Set(keys);
+	}
+
+	const globalPermissionRows = visiblePermissions.filter((p) => p.scope === "global");
+	const permissionsByModule = globalPermissionRows.reduce<Record<string, PermissionRow[]>>((acc, perm) => {
+		const moduleKey = perm.module ?? "general";
+		if (!acc[moduleKey]) acc[moduleKey] = [];
+		acc[moduleKey].push(perm);
+		return acc;
+	}, {});
+
+	function toggleModulePermissions(
+		current: Set<PermissionKey>,
+		moduleKey: string,
+		enable: boolean
+	) {
+		const next = new Set(current);
+		const modulePerms = permissionsByModule[moduleKey] ?? [];
+		modulePerms.forEach((perm) => {
+			if (enable) next.add(perm.key);
+			else next.delete(perm.key);
+		});
+		return next;
+	}
+
+	function userModules(userId: string, activePermissions?: Set<PermissionKey>) {
+		const userPerms = activePermissions ?? userGlobalPermissions(userId);
+		const modules = Object.keys(permissionsByModule).filter((moduleKey) =>
+			(permissionsByModule[moduleKey] ?? []).some((perm) => userPerms.has(perm.key))
+		);
+		return modules;
 	}
 
 	async function onAddUser() {
@@ -361,8 +399,35 @@ export default function AdminPage() {
 							<span className="text-sm">Admin</span>
 						</div>
 						<div>
-							<div className="text-sm font-medium mb-2">Feature Access</div>
+							<div className="text-sm font-medium mb-2">Module Access</div>
 							<div className="flex flex-wrap gap-2">
+								{Object.keys(permissionsByModule).map((moduleKey) => {
+									const modulePerms = permissionsByModule[moduleKey] ?? [];
+									const enabledCount = modulePerms.filter((perm) =>
+										addUserPermissions.has(perm.key)
+									).length;
+									const fullyEnabled = enabledCount === modulePerms.length && modulePerms.length > 0;
+									return (
+										<label
+											key={moduleKey}
+											className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm"
+										>
+											<Checkbox
+												checked={fullyEnabled}
+												onCheckedChange={(v) => {
+													setAddUserPermissions((prev) =>
+														toggleModulePermissions(prev, moduleKey, Boolean(v))
+													);
+												}}
+												disabled={!canManage}
+											/>
+											{formatPermissionLabel(moduleKey)} ({enabledCount}/{modulePerms.length})
+										</label>
+									);
+								})}
+							</div>
+							<div className="mt-3 text-sm font-medium">Feature Access</div>
+							<div className="mt-2 flex flex-wrap gap-2">
 								{globalPermissions.map((perm) => (
 									<label
 										key={perm.value}
@@ -461,6 +526,26 @@ export default function AdminPage() {
 												>
 													Edit
 												</Button>
+											)}
+										</div>
+										<div className="mt-3 flex flex-wrap gap-2 text-xs">
+											{userModules(
+												row.id,
+												editingUserId === row.id ? editingPermissions : undefined
+											).length === 0 ? (
+												<span className="text-muted-foreground">No modules enabled</span>
+											) : (
+												userModules(
+													row.id,
+													editingUserId === row.id ? editingPermissions : undefined
+												).map((moduleKey) => (
+													<span
+														key={`${row.id}-${moduleKey}`}
+														className="rounded-full border px-2 py-1 text-xs"
+													>
+														{formatPermissionLabel(moduleKey)}
+													</span>
+												))
 											)}
 										</div>
 										<div className="mt-2 flex flex-wrap gap-2">

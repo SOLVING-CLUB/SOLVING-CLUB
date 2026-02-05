@@ -22,16 +22,11 @@ import LearningsPage from "@/pages/dashboard/LearningsPage";
 import FinancialPage from "@/pages/dashboard/FinancialPage";
 import GlobalTasksPage from "@/pages/dashboard/GlobalTasksPage";
 import NotificationsPage from "@/pages/dashboard/NotificationsPage";
-import DocumentsPage from "@/pages/dashboard/DocumentsPage";
-import CreateDocumentPage from "@/pages/dashboard/CreateDocumentPage";
-import CreateQuotationPage from "@/pages/dashboard/CreateQuotationPage";
 import AdminPage from "@/pages/dashboard/AdminPage";
 
-import { lazy, Suspense } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { PermissionKey } from "@/lib/access/permissions";
 
-const CalendarPage = lazy(() => import("@/pages/dashboard/calendar/CalendarPage"));
 
 // Protected Route Wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -249,27 +244,6 @@ function App() {
             </PermissionGate>
           </ProtectedRoute>
         </Route>
-        <Route path="/dashboard/documents">
-          <ProtectedRoute>
-            <PermissionGate permissions="documents.manage">
-              <DocumentsPage />
-            </PermissionGate>
-          </ProtectedRoute>
-        </Route>
-        <Route path="/dashboard/documents/create">
-          <ProtectedRoute>
-            <PermissionGate permissions="documents.manage">
-              <CreateDocumentPage />
-            </PermissionGate>
-          </ProtectedRoute>
-        </Route>
-        <Route path="/dashboard/quotations/create">
-          <ProtectedRoute>
-            <PermissionGate permissions="quotations.manage">
-              <CreateQuotationPage />
-            </PermissionGate>
-          </ProtectedRoute>
-        </Route>
         <Route path="/dashboard/admin">
           <ProtectedRoute>
             <PermissionGate permissions="admin.access">
@@ -277,16 +251,6 @@ function App() {
             </PermissionGate>
           </ProtectedRoute>
         </Route>
-        <Route path="/dashboard/calendar">
-          <ProtectedRoute>
-            <PermissionGate permissions="calendar.view">
-              <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading calendar...</div>}>
-                <CalendarPage />
-              </Suspense>
-            </PermissionGate>
-          </ProtectedRoute>
-        </Route>
-
         {/* Root redirect */}
         <Route path="/">
           <Redirect to="/dashboard" />

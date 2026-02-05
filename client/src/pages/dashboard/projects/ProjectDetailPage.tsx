@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,6 @@ import {
 } from "lucide-react";
 import { ProjectMeetingsTab } from "@/components/project-meetings/ProjectMeetingsTab";
 import { Link, useParams, useLocation } from "wouter";
-import FileUpload from "@/components/file-upload";
 import { ProjectFinanceManager } from "@/components/project-finance/project-finance-manager";
 import { ProjectTaskTracker } from "@/components/project-tasks/ProjectTaskTracker";
 
@@ -48,6 +47,7 @@ interface Project {
 	client_company?: string;
 	client_phone?: string;
 	client_notes?: string;
+	documentation?: string | null;
 }
 
 interface Member {
@@ -82,6 +82,10 @@ export default function ProjectDetailPage() {
 	const [members, setMembers] = useState<Member[]>([]);
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [documentation, setDocumentation] = useState("");
+	const [docSaving, setDocSaving] = useState(false);
+	const [docTemplate, setDocTemplate] = useState("blank");
+	const docRef = useRef<HTMLTextAreaElement | null>(null);
 	
 	// Initialize activeTab from URL hash, default to "overview"
 	const getInitialTab = () => {
@@ -141,6 +145,7 @@ export default function ProjectDetailPage() {
 		}
 
 		setProject(projectData);
+		setDocumentation(projectData?.documentation || "");
 
 		// Load members then enrich with profiles
 		const { data: memberRows } = await supabase
@@ -242,6 +247,51 @@ export default function ProjectDetailPage() {
 
 		setNewMessage("");
 		loadProjectData();
+	}
+
+	async function saveDocumentation() {
+		if (!projectId) return;
+		setDocSaving(true);
+		const { error } = await supabase
+			.from("projects")
+			.update({ documentation })
+			.eq("id", projectId);
+		if (error) {
+			toast.error("Failed to save documentation");
+			setDocSaving(false);
+			return;
+		}
+		toast.success("Documentation saved");
+		setDocSaving(false);
+	}
+
+	function applyFormat(prefix: string, suffix = prefix) {
+		if (!docRef.current) return;
+		const el = docRef.current;
+		const start = el.selectionStart ?? 0;
+		const end = el.selectionEnd ?? 0;
+		const before = documentation.slice(0, start);
+		const selected = documentation.slice(start, end);
+		const after = documentation.slice(end);
+		const next = `${before}${prefix}${selected}${suffix}${after}`;
+		setDocumentation(next);
+		setTimeout(() => {
+			el.focus();
+			const cursorStart = start + prefix.length;
+			const cursorEnd = cursorStart + selected.length;
+			el.setSelectionRange(cursorStart, cursorEnd);
+		}, 0);
+	}
+
+	function insertTemplate(value: string) {
+		const templates: Record<string, string> = {
+			blank: "",
+			meeting: "## Meeting Notes\n\n**Date:** \n**Attendees:** \n\n### Notes\n- \n\n### Decisions\n- \n\n### Next Steps\n- ",
+			spec: "## Project Spec\n\n### Goals\n- \n\n### Scope\n- \n\n### Out of Scope\n- \n\n### Milestones\n- \n\n### Risks\n- ",
+		};
+		const templateText = templates[value] ?? "";
+		if (!templateText) return;
+		setDocumentation((prev) => (prev.trim() ? prev : templateText));
 	}
 
 	const getStatusColor = (status: string) => {
@@ -480,7 +530,58 @@ export default function ProjectDetailPage() {
 
 				{/* Files Tab */}
 				<TabsContent value="files" className="space-y-6">
-					<FileUpload projectId={projectId} onFileUploaded={loadProjectData} />
+					<Card>
+						<CardHeader>
+							<CardTitle>Project Documentation</CardTitle>
+							<CardDescription>
+								Keep project notes, scope, and decisions in one place.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="flex flex-wrap items-center gap-2">
+								<select
+									className="rounded-md border px-3 py-1.5 text-sm"
+									value={docTemplate}
+									onChange={(e) => {
+										const next = e.target.value;
+										setDocTemplate(next);
+										insertTemplate(next);
+									}}
+								>
+									<option value="blank">Template: Blank</option>
+									<option value="meeting">Template: Meeting Notes</option>
+									<option value="spec">Template: Project Spec</option>
+								</select>
+								<Button type="button" variant="outline" size="sm" onClick={() => applyFormat("**")}>
+									Bold
+								</Button>
+								<Button type="button" variant="outline" size="sm" onClick={() => applyFormat("_")}>
+									Italic
+								</Button>
+								<Button type="button" variant="outline" size="sm" onClick={() => applyFormat("## ", "")}>
+									H2
+								</Button>
+								<Button type="button" variant="outline" size="sm" onClick={() => applyFormat("- ", "")}>
+									List
+								</Button>
+								<Button type="button" variant="outline" size="sm" onClick={() => applyFormat("`", "`")}>
+									Code
+								</Button>
+							</div>
+							<Textarea
+								ref={docRef}
+								value={documentation}
+								onChange={(e) => setDocumentation(e.target.value)}
+								placeholder="Write project documentation here..."
+								className="min-h-[200px]"
+							/>
+							<div className="flex justify-end">
+								<Button onClick={saveDocumentation} disabled={docSaving}>
+									{docSaving ? "Saving..." : "Save Documentation"}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
 				</TabsContent>
 
 				{/* Finance Tab */}

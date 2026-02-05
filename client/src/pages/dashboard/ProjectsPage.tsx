@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { Link } from "wouter";
 import { ProjectTemplateSelector } from "@/components/project-template-selector";
 import { ProjectTemplate } from "@/lib/project-templates";
 import { usePermissions } from "@/hooks/usePermissions";
+import { withRetry } from "@/lib/utils/retry";
+import { getCache, setCache } from "@/lib/utils/cache";
 
 interface Project {
 	id: string;
@@ -77,10 +79,14 @@ export default function ProjectsPage() {
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [clients, setClients] = useState<Client[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [page, setPage] = useState(1);
+	const [pageSize] = useState(10);
+	const [totalCount, setTotalCount] = useState<number | null>(null);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 	const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false);
 	const [useExistingClient, setUseExistingClient] = useState(true);
+	const loadInFlight = useRef<Promise<void> | null>(null);
 	const [selectedClientId, setSelectedClientId] = useState<string>("");
 	const [newProject, setNewProject] = useState<NewProject>({
 		name: "",
@@ -94,6 +100,8 @@ export default function ProjectsPage() {
 	});
 
 	const loadProjects = useCallback(async () => {
+		if (loadInFlight.current) return;
+		const run = (async () => {
 		if (permissionsLoading) return;
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
@@ -104,55 +112,78 @@ export default function ProjectsPage() {
 
 		try {
 			const canViewAll = has("projects.view") || has("projects.manage");
+			const cacheKey = canViewAll
+				? `projects:all:${page}`
+				: `projects:own:${user.id}:${page}`;
+			const cached = getCache<Project[]>(cacheKey);
+			if (cached && cached.length >= 0) {
+				setProjects(
+					cached.map((project) => ({
+						...project,
+						member_count: project.member_count ?? null,
+						task_count: project.task_count ?? null,
+					}))
+				);
+			}
 			let uniqueProjects: Project[] = [];
 
 			if (canViewAll) {
-				const { data: allProjects, error: allError } = await supabase
+				const { count: total } = await supabase
+					.from("projects")
+					.select("*", { count: "exact", head: true });
+				setTotalCount(total ?? null);
+
+				const { data: pageData, error: pageError } = await supabase
 					.from("projects")
 					.select("*")
-					.order("updated_at", { ascending: false });
+					.order("updated_at", { ascending: false })
+					.range((page - 1) * pageSize, page * pageSize - 1);
+				if (pageError) throw pageError;
 
-				if (allError) {
-					console.error("Error loading all projects:", allError);
-					toast.error("Error", "Failed to load projects");
-					setLoading(false);
-					return;
-				}
-
-				uniqueProjects = (allProjects as Project[] | null) ?? [];
+				uniqueProjects = (pageData as Project[] | null) ?? [];
 			} else {
 				// First, get all projects where user is owner
-				const { data: ownedProjects, error: ownedError } = await supabase
+				const { count: ownedCount } = await supabase
 					.from("projects")
-					.select("*")
-					.eq("owner_id", user.id)
-					.order("updated_at", { ascending: false });
+					.select("*", { count: "exact", head: true })
+					.eq("owner_id", user.id);
 
-				if (ownedError) {
-					console.error("Error loading owned projects:", ownedError);
-					toast.error("Error", "Failed to load projects");
-					setLoading(false);
-					return;
-				}
+				const ownedProjects = await withRetry(async () => {
+					const { data, error } = await supabase
+						.from("projects")
+						.select("*")
+						.eq("owner_id", user.id)
+						.order("updated_at", { ascending: false })
+						.range((page - 1) * pageSize, page * pageSize - 1);
+					if (error) throw error;
+					return data;
+				});
 
 				// Then, get all projects where user is a member
-				const { data: memberProjects, error: memberError } = await supabase
+				const { count: memberCount } = await supabase
 					.from("project_members")
-					.select(`project_id, projects(*)`)
+					.select("*", { count: "exact", head: true })
 					.eq("user_id", user.id)
-					.neq("role", "owner"); // Exclude owner role since we already got those
+					.neq("role", "owner");
 
-				const hasMemberError = Boolean((memberError as unknown as { message?: string })?.message);
-				if (hasMemberError) {
-					console.error("Error loading member projects:", memberError);
-					toast.error("Error", "Failed to load projects");
-					setLoading(false);
-					return;
-				}
+				setTotalCount((ownedCount ?? 0) + (memberCount ?? 0));
+
+				const memberProjects = await withRetry(async () => {
+					const { data, error } = await supabase
+						.from("project_members")
+						.select(`project_id, projects(*)`)
+						.eq("user_id", user.id)
+						.neq("role", "owner")
+						.range((page - 1) * pageSize, page * pageSize - 1);
+					if (error) throw error;
+					return data;
+				});
 
 				// Combine and deduplicate projects
 				const ownedList: Project[] = (ownedProjects as Project[] | null) ?? [];
-				const memberList: MemberProjectsRow[] = Array.isArray(memberProjects) ? (memberProjects as unknown as MemberProjectsRow[]) : [];
+				const memberList: MemberProjectsRow[] = Array.isArray(memberProjects)
+					? (memberProjects as unknown as MemberProjectsRow[])
+					: [];
 				const memberProjectItems: Project[] = memberList
 					.map((mp) => mp.projects)
 					.filter((p): p is Project => Boolean(p));
@@ -164,48 +195,77 @@ export default function ProjectsPage() {
 				);
 			}
 
-			// Get member and task counts for each project
-			const projectsWithCounts = await Promise.all(
-				uniqueProjects.map(async (project) => {
-					// Get member count
-					const { count: memberCount } = await supabase
-						.from("project_members")
-						.select("*", { count: "exact", head: true })
-						.eq("project_id", project.id);
+			setCache(cacheKey, uniqueProjects, 60_000);
 
-					// Get task count
-					const { count: taskCount } = await supabase
-						.from("project_tasks")
-						.select("*", { count: "exact", head: true })
-						.eq("project_id", project.id);
-
-					return {
-						...project,
-						member_count: memberCount || 0,
-						task_count: taskCount || 0
-					};
-				})
-			);
+			// Defer counts to reduce fan-out
+			const projectsWithCounts = uniqueProjects.map((project) => ({
+				...project,
+				member_count: project.member_count ?? null,
+				task_count: project.task_count ?? null
+			}));
 
 			setProjects(projectsWithCounts);
+
+			// Lazy-load counts in small batches
+			const batchSize = 5;
+			for (let i = 0; i < uniqueProjects.length; i += batchSize) {
+				const batch = uniqueProjects.slice(i, i + batchSize);
+				await Promise.all(
+					batch.map(async (project) => {
+						const { count: memberCount } = await supabase
+							.from("project_members")
+							.select("*", { count: "exact", head: true })
+							.eq("project_id", project.id);
+
+						const { count: taskCount } = await supabase
+							.from("project_tasks")
+							.select("*", { count: "exact", head: true })
+							.eq("project_id", project.id);
+
+						setProjects((prev) =>
+							prev.map((p) =>
+								p.id === project.id
+									? {
+											...p,
+											member_count: memberCount ?? 0,
+											task_count: taskCount ?? 0
+									  }
+									: p
+							)
+						);
+					})
+				);
+			}
 		} catch (error) {
 			console.error("Unexpected error loading projects:", error);
 			toast.error("Error", "An unexpected error occurred while loading projects");
 		} finally {
 			setLoading(false);
 		}
-	}, [supabase, has, permissionsLoading]);
+		})();
+		loadInFlight.current = run;
+		await run.finally(() => {
+			loadInFlight.current = null;
+		});
+	}, [supabase, has, permissionsLoading, page, pageSize]);
 
 	const loadClients = useCallback(async () => {
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) return;
+		const clientsCacheKey = `clients:${user.id}`;
+		const cachedClients = getCache<Client[]>(clientsCacheKey);
+		if (cachedClients) {
+			setClients(cachedClients);
+		}
 		const { data, error } = await supabase
 			.from("clients")
 			.select("*")
 			.eq("owner_id", user.id)
 			.order("name", { ascending: true });
 		if (!error && Array.isArray(data)) {
-			setClients(data as unknown as Client[]);
+			const nextClients = data as unknown as Client[];
+			setClients(nextClients);
+			setCache(clientsCacheKey, nextClients, 60_000);
 		}
 	}, [supabase]);
 
@@ -213,6 +273,10 @@ export default function ProjectsPage() {
 		loadProjects();
 		loadClients();
 	}, [loadProjects, loadClients]);
+
+	useEffect(() => {
+		setPage(1);
+	}, [searchTerm]);
 
 	function handleTemplateSelect(template: ProjectTemplate, customData: { name: string; description: string; status: 'planning' | 'active' | 'completed' | 'on-hold'; client_name?: string; client_email?: string; client_company?: string; client_phone?: string; client_notes?: string }) {
 		setNewProject({
@@ -333,6 +397,7 @@ export default function ProjectsPage() {
 		project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 		(project.description || "").toLowerCase().includes(searchTerm.toLowerCase())
 	);
+	const totalPages = totalCount ? Math.max(1, Math.ceil(totalCount / pageSize)) : null;
 
 	const getStatusColor = (status: string) => {
 		switch (status) {
@@ -544,15 +609,38 @@ export default function ProjectsPage() {
 								/>
 							</div>
 						</div>
-						<div className="flex gap-4 text-sm text-muted-foreground">
+						<div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
 							<div className="flex items-center gap-1">
 								<FileText className="h-4 w-4" />
-								{projects.length} Projects
+								{totalCount ?? projects.length} Projects
 							</div>
 							<div className="flex items-center gap-1">
 								<Users className="h-4 w-4" />
 								{projects.reduce((sum, p) => sum + (p.member_count || 0), 0)} Members
 							</div>
+							{totalPages && (
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={page <= 1 || loading}
+										onClick={() => setPage((p) => Math.max(1, p - 1))}
+									>
+										Prev
+									</Button>
+									<span className="text-xs">
+										Page {page} of {totalPages}
+									</span>
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={page >= totalPages || loading}
+										onClick={() => setPage((p) => p + 1)}
+									>
+										Next
+									</Button>
+								</div>
+							)}
 						</div>
 					</div>
 				</CardContent>
