@@ -501,18 +501,19 @@ export default function AdminPage() {
 					<CardTitle>Access Templates & Custom Grants</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{!canManage ? (
+					{!canManage && (
 						<p className="text-sm text-muted-foreground">
 							You need the <code>admin.manage_access</code> permission to edit roles and permissions.
 						</p>
-					) : (
-						<div className="space-y-6">
+					)}
+					<div className="space-y-6">
 							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
 									<div className="font-medium">Assign Global Role</div>
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignGlobalRole.userId}
+										disabled={!canManage}
 										onChange={(e) => setAssignGlobalRole((s) => ({ ...s, userId: e.target.value }))}
 									>
 										<option value="">Select user</option>
@@ -523,6 +524,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignGlobalRole.roleId}
+										disabled={!canManage}
 										onChange={(e) => setAssignGlobalRole((s) => ({ ...s, roleId: e.target.value }))}
 									>
 										<option value="">Select role</option>
@@ -543,6 +545,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignProjectRole.projectId}
+										disabled={!canManage}
 										onChange={(e) => setAssignProjectRole((s) => ({ ...s, projectId: e.target.value }))}
 									>
 										<option value="">Select project</option>
@@ -553,6 +556,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignProjectRole.userId}
+										disabled={!canManage}
 										onChange={(e) => setAssignProjectRole((s) => ({ ...s, userId: e.target.value }))}
 									>
 										<option value="">Select user</option>
@@ -563,6 +567,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignProjectRole.roleId}
+										disabled={!canManage}
 										onChange={(e) => setAssignProjectRole((s) => ({ ...s, roleId: e.target.value }))}
 									>
 										<option value="">Select role</option>
@@ -587,6 +592,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignPermission.scope}
+										disabled={!canManage}
 										onChange={(e) =>
 											setAssignPermission((s) => ({ ...s, scope: e.target.value as "global" | "project" }))
 										}
@@ -598,6 +604,7 @@ export default function AdminPage() {
 										<select
 											className="w-full rounded-md border px-3 py-2 text-sm"
 											value={assignPermission.projectId}
+											disabled={!canManage}
 											onChange={(e) => setAssignPermission((s) => ({ ...s, projectId: e.target.value }))}
 										>
 											<option value="">Select project</option>
@@ -609,6 +616,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignPermission.userId}
+										disabled={!canManage}
 										onChange={(e) => setAssignPermission((s) => ({ ...s, userId: e.target.value }))}
 									>
 										<option value="">Select user</option>
@@ -619,6 +627,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignPermission.permissionId}
+										disabled={!canManage}
 										onChange={(e) => setAssignPermission((s) => ({ ...s, permissionId: e.target.value }))}
 									>
 										<option value="">Select permission</option>
@@ -650,6 +659,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignBundleToRole.roleId}
+										disabled={!canManage}
 										onChange={(e) => setAssignBundleToRole((s) => ({ ...s, roleId: e.target.value }))}
 									>
 										<option value="">Select role</option>
@@ -660,6 +670,7 @@ export default function AdminPage() {
 									<select
 										className="w-full rounded-md border px-3 py-2 text-sm"
 										value={assignBundleToRole.bundleId}
+										disabled={!canManage}
 										onChange={(e) => setAssignBundleToRole((s) => ({ ...s, bundleId: e.target.value }))}
 									>
 										<option value="">Select bundle</option>
@@ -710,7 +721,6 @@ export default function AdminPage() {
 								</ul>
 							</div>
 						</div>
-					)}
 				</CardContent>
 			</Card>
 		</div>

@@ -3,9 +3,18 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
-import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { PermissionKey } from "@/lib/access/permissions";
+import { LayoutDashboard, BookOpen, Briefcase, User, Clock, LogOut, DollarSign, CheckSquare, Shield } from "lucide-react";
 
-export const nav = [
+type NavItem = {
+	href: string;
+	label: string;
+	icon: typeof LayoutDashboard;
+	permission?: PermissionKey;
+};
+
+export const nav: NavItem[] = [
 	{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 	{ href: "/dashboard/learnings", label: "Learnings", icon: BookOpen },
 	{ href: "/dashboard/projects", label: "Projects", icon: Briefcase },
@@ -13,12 +22,15 @@ export const nav = [
 	{ href: "/dashboard/financial", label: "Financial", icon: DollarSign },
 	{ href: "/dashboard/profile", label: "Profile", icon: User },
 	{ href: "/dashboard/hours", label: "Hours", icon: Clock },
+	{ href: "/dashboard/admin", label: "Admin", icon: Shield, permission: "admin.access" },
 ];
 
 export default function Sidebar() {
 	const [pathname] = useLocation();
 	const [, setLocation] = useLocation();
 	const supabase = getSupabaseClient();
+	const { has, loading } = usePermissions();
+	const visibleNav = nav.filter((item) => !item.permission || (!loading && has(item.permission)));
 
 	async function onLogout() {
 		await supabase.auth.signOut();
@@ -28,7 +40,7 @@ export default function Sidebar() {
 	return (
 		<aside className="relative z-50 group h-full w-[64px] hover:w-[240px] p-4 flex flex-col bg-background overflow-visible border-r transition-[width] duration-200 ease-in-out">
 			<nav className="flex flex-col gap-2">
-				{nav.map((item) => (
+				{visibleNav.map((item) => (
 					<Link
 						key={item.href}
 						href={item.href}

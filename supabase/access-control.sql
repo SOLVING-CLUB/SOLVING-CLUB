@@ -56,6 +56,9 @@ create table if not exists public.access_user_roles (
 );
 create unique index if not exists access_user_roles_unique
   on public.access_user_roles (user_id, role_id, project_id);
+-- Ensure project_id can be null for global assignments
+alter table public.access_user_roles
+  alter column project_id drop not null;
 
 create table if not exists public.access_user_permissions (
   id uuid primary key default gen_random_uuid(),
@@ -66,6 +69,9 @@ create table if not exists public.access_user_permissions (
 );
 create unique index if not exists access_user_permissions_unique
   on public.access_user_permissions (user_id, permission_id, project_id);
+-- Ensure project_id can be null for global assignments
+alter table public.access_user_permissions
+  alter column project_id drop not null;
 
 create table if not exists public.access_audit (
   id uuid primary key default gen_random_uuid(),
@@ -96,11 +102,6 @@ language sql
 security definer
 set search_path = public
 as $$
-  -- Admins get everything
-  select p.key
-  from public.access_permissions p
-  where public.is_admin()
-  union
   with
   direct as (
     select p.key
@@ -128,6 +129,10 @@ as $$
     where ur.user_id = auth.uid()
       and (ur.project_id is null or ur.project_id = project_id)
   )
+  select p.key
+  from public.access_permissions p
+  where public.is_admin()
+  union
   select distinct key from (
     select key from direct
     union all select key from role_perms
