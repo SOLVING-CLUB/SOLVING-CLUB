@@ -166,6 +166,19 @@ alter table public.project_tasks enable row level security;
 alter table public.project_messages enable row level security;
 alter table public.project_files enable row level security;
 
+-- Helper to avoid recursive RLS checks
+create or replace function public.is_project_member(p_project_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.project_members pm
+    where pm.project_id = p_project_id and pm.user_id = auth.uid()
+  );
+$$;
+
 -- Clients table
 create table if not exists public.clients (
     id uuid primary key default gen_random_uuid(),
@@ -266,8 +279,11 @@ $$ language plpgsql security definer;
 drop policy if exists "Users can view projects they own or are members of" on public.projects;
 create policy "Users can view projects they own or are members of" on public.projects
 	for select using (
-		-- Keep this non-recursive: only reference columns on this table
+		-- Owners, members, or users with global project permissions
 		auth.uid() = owner_id
+		or public.is_project_member(id)
+		or public.has_permission('projects.view', null)
+		or public.has_permission('projects.manage', null)
 	);
 
 drop policy if exists "Users can create projects" on public.projects;

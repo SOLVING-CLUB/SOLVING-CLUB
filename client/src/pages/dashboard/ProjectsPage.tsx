@@ -14,6 +14,7 @@ import { Plus, Search, Users, Calendar, FileText, MessageSquare, Settings, Eye, 
 import { Link } from "wouter";
 import { ProjectTemplateSelector } from "@/components/project-template-selector";
 import { ProjectTemplate } from "@/lib/project-templates";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Project {
 	id: string;
@@ -72,6 +73,7 @@ type InsertProjectPayload = {
 
 export default function ProjectsPage() {
 	const supabase = getSupabaseClient();
+	const { has, loading: permissionsLoading } = usePermissions();
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [clients, setClients] = useState<Client[]>([]);
 	const [loading, setLoading] = useState(false);
@@ -92,6 +94,7 @@ export default function ProjectsPage() {
 	});
 
 	const loadProjects = useCallback(async () => {
+		if (permissionsLoading) return;
 		setLoading(true);
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) {
@@ -100,47 +103,66 @@ export default function ProjectsPage() {
 		}
 
 		try {
-			// First, get all projects where user is owner
-			const { data: ownedProjects, error: ownedError } = await supabase
-				.from("projects")
-				.select("*")
-				.eq("owner_id", user.id)
-				.order("updated_at", { ascending: false });
+			const canViewAll = has("projects.view") || has("projects.manage");
+			let uniqueProjects: Project[] = [];
 
-			if (ownedError) {
-				console.error("Error loading owned projects:", ownedError);
-				toast.error("Error", "Failed to load projects");
-				setLoading(false);
-				return;
+			if (canViewAll) {
+				const { data: allProjects, error: allError } = await supabase
+					.from("projects")
+					.select("*")
+					.order("updated_at", { ascending: false });
+
+				if (allError) {
+					console.error("Error loading all projects:", allError);
+					toast.error("Error", "Failed to load projects");
+					setLoading(false);
+					return;
+				}
+
+				uniqueProjects = (allProjects as Project[] | null) ?? [];
+			} else {
+				// First, get all projects where user is owner
+				const { data: ownedProjects, error: ownedError } = await supabase
+					.from("projects")
+					.select("*")
+					.eq("owner_id", user.id)
+					.order("updated_at", { ascending: false });
+
+				if (ownedError) {
+					console.error("Error loading owned projects:", ownedError);
+					toast.error("Error", "Failed to load projects");
+					setLoading(false);
+					return;
+				}
+
+				// Then, get all projects where user is a member
+				const { data: memberProjects, error: memberError } = await supabase
+					.from("project_members")
+					.select(`project_id, projects(*)`)
+					.eq("user_id", user.id)
+					.neq("role", "owner"); // Exclude owner role since we already got those
+
+				const hasMemberError = Boolean((memberError as unknown as { message?: string })?.message);
+				if (hasMemberError) {
+					console.error("Error loading member projects:", memberError);
+					toast.error("Error", "Failed to load projects");
+					setLoading(false);
+					return;
+				}
+
+				// Combine and deduplicate projects
+				const ownedList: Project[] = (ownedProjects as Project[] | null) ?? [];
+				const memberList: MemberProjectsRow[] = Array.isArray(memberProjects) ? (memberProjects as unknown as MemberProjectsRow[]) : [];
+				const memberProjectItems: Project[] = memberList
+					.map((mp) => mp.projects)
+					.filter((p): p is Project => Boolean(p));
+				const allProjects: Project[] = [...ownedList, ...memberProjectItems];
+
+				// Remove duplicates based on project ID
+				uniqueProjects = allProjects.filter((project, index, self) => 
+					index === self.findIndex((p) => p.id === project.id)
+				);
 			}
-
-			// Then, get all projects where user is a member
-			const { data: memberProjects, error: memberError } = await supabase
-				.from("project_members")
-				.select(`project_id, projects(*)`)
-				.eq("user_id", user.id)
-				.neq("role", "owner"); // Exclude owner role since we already got those
-
-			const hasMemberError = Boolean((memberError as unknown as { message?: string })?.message);
-			if (hasMemberError) {
-				console.error("Error loading member projects:", memberError);
-				toast.error("Error", "Failed to load projects");
-				setLoading(false);
-				return;
-			}
-
-			// Combine and deduplicate projects
-			const ownedList: Project[] = (ownedProjects as Project[] | null) ?? [];
-			const memberList: MemberProjectsRow[] = Array.isArray(memberProjects) ? (memberProjects as unknown as MemberProjectsRow[]) : [];
-			const memberProjectItems: Project[] = memberList
-				.map((mp) => mp.projects)
-				.filter((p): p is Project => Boolean(p));
-			const allProjects: Project[] = [...ownedList, ...memberProjectItems];
-
-			// Remove duplicates based on project ID
-			const uniqueProjects: Project[] = allProjects.filter((project, index, self) => 
-				index === self.findIndex((p) => p.id === project.id)
-			);
 
 			// Get member and task counts for each project
 			const projectsWithCounts = await Promise.all(
@@ -172,7 +194,7 @@ export default function ProjectsPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [supabase]);
+	}, [supabase, has, permissionsLoading]);
 
 	const loadClients = useCallback(async () => {
 		const { data: { user } } = await supabase.auth.getUser();

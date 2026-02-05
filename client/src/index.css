@@ -120,3 +120,28 @@
     @apply bg-background text-foreground transition-colors duration-200;
   }
 }
+
+/* Sidebar scrollbar: hidden by default, visible on hover */
+.sidebar-scroll {
+  scrollbar-width: none;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.sidebar-scroll:hover {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground)) transparent;
+}
+.sidebar-scroll:hover::-webkit-scrollbar {
+  width: 8px;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-track {
+  background: transparent;
+}

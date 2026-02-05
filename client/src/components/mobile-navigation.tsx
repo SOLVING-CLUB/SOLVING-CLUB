@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import { 
 	Menu, 
 	Home, 
@@ -11,29 +10,43 @@ import {
 	Clock, 
 	BookOpen, 
 	FolderOpen, 
-	Settings, 
 	LogOut,
 	Search,
-	DollarSign
+	DollarSign,
+	Shield,
+	FileText,
+	FileEdit,
+	Calendar,
+	Bell
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { getSupabaseClient } from "@/lib/supabase";
 import ThemeToggle from "@/components/theme-toggle";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { PermissionKey } from "@/lib/access/permissions";
 
-const navigation = [
-	{ name: "Dashboard", href: "/dashboard", icon: Home },
-	{ name: "Profile", href: "/dashboard/profile", icon: User },
-	{ name: "Hours", href: "/dashboard/hours", icon: Clock },
-	{ name: "Learnings", href: "/dashboard/learnings", icon: BookOpen },
-	{ name: "Projects", href: "/dashboard/projects", icon: FolderOpen },
-	{ name: "Financial", href: "/dashboard/financial", icon: DollarSign },
+const navigation: Array<{ name: string; href: string; icon: typeof Home; permission?: PermissionKey }> = [
+	{ name: "Dashboard", href: "/dashboard", icon: Home, permission: "dashboard.view" },
+	{ name: "Projects", href: "/dashboard/projects", icon: FolderOpen, permission: "projects.view" },
+	{ name: "Learnings", href: "/dashboard/learnings", icon: BookOpen, permission: "learnings.manage" },
+	{ name: "Hours", href: "/dashboard/hours", icon: Clock, permission: "hours.view" },
+	{ name: "Financial", href: "/dashboard/financial", icon: DollarSign, permission: "financial.view" },
+	{ name: "Profile", href: "/dashboard/profile", icon: User, permission: "profile.manage" },
+	{ name: "Documents", href: "/dashboard/documents", icon: FileText, permission: "documents.manage" },
+	{ name: "Quotations", href: "/dashboard/quotations/create", icon: FileEdit, permission: "quotations.manage" },
+	{ name: "Calendar", href: "/dashboard/calendar", icon: Calendar, permission: "calendar.view" },
+	{ name: "Notifications", href: "/dashboard/notifications", icon: Bell, permission: "dashboard.view" },
+	{ name: "Admin", href: "/dashboard/admin", icon: Shield, permission: "admin.access" },
 ];
 
 export function MobileNavigation() {
 	const [isOpen, setIsOpen] = useState(false);
 	const [location, setLocation] = useLocation();
 	const supabase = getSupabaseClient();
+	const { has, loading } = usePermissions();
+	const visibleNav = navigation.filter((item) => !item.permission || (!loading && has(item.permission)));
+	const bottomNav = visibleNav.slice(0, 6);
 
 	const handleLogout = async () => {
 		await supabase.auth.signOut();
@@ -63,7 +76,7 @@ export function MobileNavigation() {
 
 									{/* Navigation */}
 									<nav className="flex-1 p-4 space-y-2">
-										{navigation.map((item) => {
+										{visibleNav.map((item) => {
 											const isActive = location === item.href || 
 												(item.href !== "/dashboard" && location?.startsWith(item.href));
 											
@@ -122,7 +135,7 @@ export function MobileNavigation() {
 			{/* Mobile Bottom Navigation */}
 			<div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t z-50">
 				<div className="grid grid-cols-6 h-16">
-					{navigation.map((item) => {
+					{bottomNav.map((item) => {
 						const isActive = location === item.href || 
 							(item.href !== "/dashboard" && location?.startsWith(item.href));
 						

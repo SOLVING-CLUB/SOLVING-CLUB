@@ -337,6 +337,11 @@ export default function AdminPage() {
 					<CardTitle>Add User</CardTitle>
 				</CardHeader>
 				<CardContent>
+					{!canManage && (
+						<p className="mb-3 text-sm text-muted-foreground">
+							You need the <code>admin.manage_access</code> permission to edit access.
+						</p>
+					)}
 					<div className="space-y-4">
 						<div>
 							<label className="text-sm font-medium">Email</label>
@@ -344,12 +349,14 @@ export default function AdminPage() {
 								value={addUserEmail}
 								onChange={(e) => setAddUserEmail(e.target.value)}
 								placeholder="user@example.com"
+								disabled={!canManage}
 							/>
 						</div>
 						<div className="flex items-center gap-2">
 							<Checkbox
 								checked={addUserIsAdmin}
 								onCheckedChange={(v) => setAddUserIsAdmin(Boolean(v))}
+								disabled={!canManage}
 							/>
 							<span className="text-sm">Admin</span>
 						</div>
@@ -371,6 +378,7 @@ export default function AdminPage() {
 													return next;
 												});
 											}}
+											disabled={!canManage}
 										/>
 										{formatPermissionLabel(perm.label)}
 									</label>
@@ -411,7 +419,7 @@ export default function AdminPage() {
 									</div>
 									<Button
 										variant={row.is_admin ? "outline" : "default"}
-										disabled={busy}
+										disabled={!canManage || busy}
 										onClick={() => toggleAdmin(row.id, !row.is_admin)}
 									>
 										{row.is_admin ? "Revoke Admin" : "Make Admin"}

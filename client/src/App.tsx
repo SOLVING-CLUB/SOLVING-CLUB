@@ -22,9 +22,14 @@ import LearningsPage from "@/pages/dashboard/LearningsPage";
 import FinancialPage from "@/pages/dashboard/FinancialPage";
 import GlobalTasksPage from "@/pages/dashboard/GlobalTasksPage";
 import NotificationsPage from "@/pages/dashboard/NotificationsPage";
+import DocumentsPage from "@/pages/dashboard/DocumentsPage";
+import CreateDocumentPage from "@/pages/dashboard/CreateDocumentPage";
+import CreateQuotationPage from "@/pages/dashboard/CreateQuotationPage";
 import AdminPage from "@/pages/dashboard/AdminPage";
 
 import { lazy, Suspense } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
+import type { PermissionKey } from "@/lib/access/permissions";
 
 const CalendarPage = lazy(() => import("@/pages/dashboard/calendar/CalendarPage"));
 
@@ -63,16 +68,61 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <DashboardFrame>{children}</DashboardFrame>;
 }
 
+function AccessDenied({ message }: { message?: string }) {
+  return (
+    <div className="p-6">
+      <div className="rounded-lg border bg-background p-6">
+        <h2 className="text-lg font-semibold">Access Denied</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {message ?? "You do not have permission to view this page."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PermissionGate({
+  permissions,
+  projectId,
+  mode = "all",
+  children,
+}: {
+  permissions: PermissionKey | PermissionKey[];
+  projectId?: string | null;
+  mode?: "all" | "any";
+  children: React.ReactNode;
+}) {
+  const { has, loading } = usePermissions(projectId ?? null);
+  const required = Array.isArray(permissions) ? permissions : [permissions];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Checking access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const allowed =
+    mode === "any" ? required.some((perm) => has(perm)) : required.every((perm) => has(perm));
+  if (!allowed) {
+    return <AccessDenied />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   const [location, setLocation] = useLocation();
   const [loading, setLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     // Check authentication on mount
     const supabase = getSupabaseClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthenticated(!!session);
       setLoading(false);
       if (!session && !location.startsWith('/auth')) {
         setLocation('/auth/login');
@@ -83,13 +133,10 @@ function App() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const newAuthenticated = !!session;
-      setAuthenticated(newAuthenticated);
-
       // Only redirect if we're not already on the correct page
-      if (!newAuthenticated && !location.startsWith('/auth')) {
+      if (!session && !location.startsWith('/auth')) {
         setLocation('/auth/login');
-      } else if (newAuthenticated && location.startsWith('/auth') && !location.includes('update-password')) {
+      } else if (session && location.startsWith('/auth') && !location.includes('update-password')) {
         setLocation('/dashboard');
       }
     });
@@ -122,64 +169,121 @@ function App() {
         {/* Dashboard Routes */}
         <Route path="/dashboard">
           <ProtectedRoute>
-            <DashboardPage />
+            <PermissionGate permissions="dashboard.view">
+              <DashboardPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/profile">
           <ProtectedRoute>
-            <ProfilePage />
+            <PermissionGate permissions="profile.manage">
+              <ProfilePage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/projects">
           <ProtectedRoute>
-            <ProjectsPage />
+            <PermissionGate permissions="projects.view">
+              <ProjectsPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/projects/:id">
-          <ProtectedRoute>
-            <ProjectDetailPage />
-          </ProtectedRoute>
+          {(params) => (
+            <ProtectedRoute>
+              <PermissionGate
+                permissions={["projects.view", "project.view"]}
+                projectId={params.id}
+                mode="any"
+              >
+                <ProjectDetailPage />
+              </PermissionGate>
+            </ProtectedRoute>
+          )}
         </Route>
         <Route path="/dashboard/projects/:id/settings">
-          <ProtectedRoute>
-            <ProjectSettingsPage />
-          </ProtectedRoute>
+          {(params) => (
+            <ProtectedRoute>
+              <PermissionGate
+                permissions={["projects.settings", "project.manage"]}
+                projectId={params.id}
+                mode="any"
+              >
+                <ProjectSettingsPage />
+              </PermissionGate>
+            </ProtectedRoute>
+          )}
         </Route>
         <Route path="/dashboard/hours">
           <ProtectedRoute>
-            <HoursPage />
+            <PermissionGate permissions="hours.view">
+              <HoursPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/learnings">
           <ProtectedRoute>
-            <LearningsPage />
+            <PermissionGate permissions="learnings.manage">
+              <LearningsPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/financial">
           <ProtectedRoute>
-            <FinancialPage />
+            <PermissionGate permissions="financial.view">
+              <FinancialPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/global-tasks">
           <ProtectedRoute>
-            <GlobalTasksPage />
+            <PermissionGate permissions="global_tasks.manage">
+              <GlobalTasksPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/notifications">
           <ProtectedRoute>
-            <NotificationsPage />
+            <PermissionGate permissions="dashboard.view">
+              <NotificationsPage />
+            </PermissionGate>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/dashboard/documents">
+          <ProtectedRoute>
+            <PermissionGate permissions="documents.manage">
+              <DocumentsPage />
+            </PermissionGate>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/dashboard/documents/create">
+          <ProtectedRoute>
+            <PermissionGate permissions="documents.manage">
+              <CreateDocumentPage />
+            </PermissionGate>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/dashboard/quotations/create">
+          <ProtectedRoute>
+            <PermissionGate permissions="quotations.manage">
+              <CreateQuotationPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/admin">
           <ProtectedRoute>
-            <AdminPage />
+            <PermissionGate permissions="admin.access">
+              <AdminPage />
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
         <Route path="/dashboard/calendar">
           <ProtectedRoute>
-            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading calendar...</div>}>
-              <CalendarPage />
-            </Suspense>
+            <PermissionGate permissions="calendar.view">
+              <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading calendar...</div>}>
+                <CalendarPage />
+              </Suspense>
+            </PermissionGate>
           </ProtectedRoute>
         </Route>
 
